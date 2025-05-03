@@ -176,7 +176,7 @@ wandb
 # Exp outputs
 exp_outputs
 
-lora_modules/
+# lora_modules/
 
-lora_modules/**/*.pt
-lora_modules/**/*.safetensors
+# lora_modules/**/*.pt
+# lora_modules/**/*.safetensors
