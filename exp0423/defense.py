@@ -114,7 +114,8 @@ elif args.model_name == "qwen":
     template_name = 'qwen-7b-chat'
 
 elif args.model_name == "qwen2":
-    model_name = "cognitivecomputations/dolphin-2.9.2-qwen2-72b"
+    # model_name = "cognitivecomputations/dolphin-2.9.2-qwen2-72b"
+    model_name = "Qwen/Qwen2-72B-Instruct"
     small_model_name = "Qwen/Qwen2-1.5B-Instruct"
     template_name = 'qwen-7b-chat'
 else:

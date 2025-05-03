@@ -29,11 +29,14 @@ if args.model_name == "llama":
     # small_template_name = "llama-2"
 
 
-    model_name = "georgesung/llama2_7b_chat_uncensored"
-    small_model_name = "georgesung/llama2_7b_chat_uncensored"
+    # model_name = "georgesung/llama2_7b_chat_uncensored"
+    # small_model_name = "georgesung/llama2_7b_chat_uncensored"
 
-    template_name = 'uncensored_llama'
-    small_template_name = 'uncensored_llama'
+    model_name = "meta-llama/Llama-3.1-8B-Instruct"
+    small_model_name = "cognitivecomputations/Dolphin3.0-Llama3.2-1B"
+
+    template_name = "Llama-3-8B-Instruct"
+    small_template_name = 'qwen-7b-chat'
 
 elif args.model_name == "qwen":
     model_name = "Qwen/Qwen2-7B-Instruct"

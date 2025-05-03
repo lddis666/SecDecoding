@@ -184,3 +184,5 @@ exp_outputs
 lora_modules/llama2
 
 lora_modules/vicuna
+
+lora_modules/vicuna1

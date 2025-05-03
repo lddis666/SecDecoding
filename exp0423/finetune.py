@@ -72,11 +72,12 @@ torch.cuda.manual_seed_all(args.seed)
 if args.model_name == "vicuna":
     model_name = "lmsys/vicuna-7b-v1.5"
 elif args.model_name == "llama":
-    model_name = "meta-llama/Llama-2-7b-chat-hf"
+    model_name = "cognitivecomputations/Dolphin3.0-Llama3.2-1B"
 elif args.model_name == "qwen":
     model_name = "Qwen/Qwen2-1.5B-Instruct"
 elif args.model_name == "llama2":
     model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+
 else:
     raise ValueError("Invalid model name.")
 
