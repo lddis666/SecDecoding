@@ -15,4 +15,5 @@ wandb
 peft==0.15.2
 hf_xet
 -e ./just_eval
+-e ./FastChat/.
 
