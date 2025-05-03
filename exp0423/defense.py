@@ -30,7 +30,7 @@ def get_args():
 
     # Defense Parameters
     parser.add_argument("--defender", type=str, default='SafeDecoding')
-    parser.add_argument("--max_new_tokens", type=int, default=1024)
+    parser.add_argument("--max_new_tokens", type=int, default=30)
     parser.add_argument("--alpha", type=float, default=3)
     parser.add_argument("--first_m", type=int, default=2)
     parser.add_argument("--top_k", type=int, default=10)
@@ -82,10 +82,10 @@ if args.model_name == "vicuna":
     template_name = 'vicuna'
 elif args.model_name == "llama":
     model_name = "jarradh/llama2_70b_chat_uncensored"
-    small_model_name = "meta-llama/Llama-2-7b-chat-hf"
+    small_model_name = "georgesung/llama2_7b_chat_uncensored"
 
     template_name = 'uncensored_llama'
-    small_template_name = 'llama-2'
+    small_template_name = 'uncensored_llama'
 
 elif args.model_name == "llama2":
     # model_name = "meta-llama/Llama-2-70b-chat-hf"
@@ -110,6 +110,11 @@ elif args.model_name == "falcon":
 
 elif args.model_name == "qwen":
     model_name = "Qwen/Qwen2-7B-Instruct" # From HF
+    small_model_name = "Qwen/Qwen2-1.5B-Instruct"
+    template_name = 'qwen-7b-chat'
+
+elif args.model_name == "qwen2":
+    model_name = "cognitivecomputations/dolphin-2.9.2-qwen2-72b"
     small_model_name = "Qwen/Qwen2-1.5B-Instruct"
     template_name = 'qwen-7b-chat'
 else:
@@ -141,7 +146,10 @@ if args.defender == 'SecDecoding':
                         use_cache=args.use_cache,
                         do_sample=False,
                         device=args.device)
-    small_model = PeftModel.from_pretrained(small_model, "/root/SafeDecoding/lora_modules/"+args.model_name, adapter_name="expert")
+    lora_name = args.model_name
+    if args.model_name == "qwen2":
+        lora_name = "qwen"
+    small_model = PeftModel.from_pretrained(small_model, "/root/SafeDecoding/lora_modules/"+lora_name, adapter_name="expert")
     adapter_names = ['__base__', 'expert']
 
 

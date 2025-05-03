@@ -130,8 +130,8 @@ peft_config = LoraConfig(
     bias=args.bias,
     task_type="CAUSAL_LM",
     # target_modules=['c_attn','c_proj','w1','w2']
-    target_modules=['q_proj','k_proj','v_proj','o_proj']
-    # target_modules=['q_proj','k_proj']
+    # target_modules=['q_proj','k_proj','v_proj','o_proj']
+    target_modules=['q_proj','v_proj']
 )
 model = get_peft_model(model, peft_config)
 model.print_trainable_parameters()

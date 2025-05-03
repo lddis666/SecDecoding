@@ -180,3 +180,7 @@ exp_outputs
 
 # lora_modules/**/*.pt
 # lora_modules/**/*.safetensors
+
+lora_modules/llama2
+
+lora_modules/vicuna

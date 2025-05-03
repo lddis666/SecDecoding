@@ -89,6 +89,7 @@ class PromptManager:
         if self.conv_template.name == 'llama-2':
             prompt += ' '
 
+        # return self.instruction
         return prompt
     
     def get_input_ids(self):
