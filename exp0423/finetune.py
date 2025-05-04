@@ -38,7 +38,7 @@ def get_args():
     parser.add_argument("--optim", type=str, default="adamw_torch")
     parser.add_argument("--per_device_train_batch_size", type=int, default=2)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
-    parser.add_argument("--num_train_epochs", type=int, default=2)
+    parser.add_argument("--num_train_epochs", type=int, default=3)
     parser.add_argument("--logging_steps", type=int, default=10)
     # parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--learning_rate", type=float, default=5e-5) 

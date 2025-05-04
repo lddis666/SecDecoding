@@ -161,7 +161,7 @@ if args.defender == 'SecDecoding':
     lora_name = args.model_name
     if args.model_name == "qwen2":
         lora_name = "qwen"
-    small_model = PeftModel.from_pretrained(small_model, "/root/SafeDecoding/lora_modules/"+lora_name, adapter_name="expert")
+    small_model = PeftModel.from_pretrained(small_model, "../lora_modules/"+lora_name, adapter_name="expert")
     adapter_names = ['__base__', 'expert']
 
 
@@ -190,10 +190,7 @@ if args.attacker == "AdvBench":
 elif args.attacker in ["GCG", "AutoDAN", "PAIR"]:
     if args.model_name == 'llama2':
         attack_prompts = json.load(open(f'../datasets/{args.attacker}/llama.json', 'r', encoding='utf-8'))
-    else:
-        attack_prompts = json.load(open(f'../datasets/{args.attacker}/{args.model_name}.json', 'r', encoding='utf-8'))
-
-    if args.model_name == 'qwen2':
+    elif args.model_name == "qwen2":
         attack_prompts = json.load(open(f'../datasets/{args.attacker}/qwen.json', 'r', encoding='utf-8'))
     else:
         attack_prompts = json.load(open(f'../datasets/{args.attacker}/{args.model_name}.json', 'r', encoding='utf-8'))

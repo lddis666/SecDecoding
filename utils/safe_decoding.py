@@ -658,6 +658,10 @@ class Dynamic_alpha():
                 "I am not allowed to",
                 "I am not able to",
                 "I am not authorized",
+                "I can't",
+                "I can’t",
+                "I can\'t",
+
         ]
 
         self.safety_token_ids = list(self.get_safety_token_ids())
