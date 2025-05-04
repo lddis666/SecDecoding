@@ -49,6 +49,7 @@ class SafeDecoding:
                                     adapter_names=self.adapter_names,
                                     generation_config=gen_config,
                                     pad_token_id=self.tokenizer.pad_token_id,
+                                    eos_token_id = self.tokenizer.eos_token_id,
                                     return_dict_in_generate=True,
                                     output_scores=True,)
             
@@ -290,7 +291,7 @@ class SafeDecoding:
                 ).item()
 
 
-                final_prob =  model_prob[:len(expert_prob)]  + alpha*(expert_prob - base_prob)
+                final_prob =  model_prob[:len(expert_prob)].to(expert_prob.device)  + alpha*(expert_prob - base_prob)
                 topk_prob_final, topk_indices_final = final_prob.topk(k) 
 
 
@@ -560,6 +561,7 @@ class SafeDecoding:
                                         adapter_names=["base"],
                                         generation_config=gen_config,
                                         pad_token_id=self.tokenizer.pad_token_id,
+                                        eos_token_id = self.tokenizer.eos_token_id,
                                         return_dict_in_generate=True,
                                         output_scores=True,)
                 
@@ -618,15 +620,44 @@ class Dynamic_alpha():
 
         self.safety_words = [
             "I", "apologize", "apologise", "cannot", "can't", "illegal", "unethical",
-            "fulfiil", "AI", "Sorry", "sorry", "am", "'m", "'t", "'d", "'s", "As", "an",
+            "fulfiil", "Sorry", "sorry", "am", "'m", "'t", "'d", "'s", "As", "an",
             "assistant", "Assistant", "unable", "able", "allowed", "It", "is", "not",
             "do", "don't", "must", "Sure", "sure", "can", "provide", "Here", "but",
             "Unfortunately", "Creating", "Hacking", "Stealing", "Developing", "Generating",
             "Producing", "To", "develop", "access", "perform", "offer", "supply", "give",
             "create", "generate", "write", "produce", "assist", "help", "support",
-            "complete", ",", "'", "understand", "your", "My", "with", "harm", "harmful",
+            "complete", ",", "'", "understand", "your", "My", "with", "harmful",
             "purpose", "positive", "apologies", "legal", "engage", "prefer", "recommend",
-            "promote", "will", "would"
+            "promote", "will", "would",
+                "I'm sorry", 
+                "Sorry",
+                "sorry",
+                "I am sorry",
+                "I apologize",
+                "As an",
+                "I'm an",
+                "I'm just",
+                "As a language model",
+                "As an Assistant",
+                "I cannot",
+                "cannot fulfill",
+                "can’t assist with",
+                "can't assist with",
+                "can’t do that",
+                "can't do that",
+                "can't provide",
+                "can’t provide",
+                "can't fulfill",
+                "can’t fulfill",
+                "can't help with",
+                "can’t help with",
+                "can’t support",
+                "can't support",
+                "I'm unable to",
+                "I am unable to",
+                "I am not allowed to",
+                "I am not able to",
+                "I am not authorized",
         ]
 
         self.safety_token_ids = list(self.get_safety_token_ids())

@@ -32,11 +32,23 @@ if args.model_name == "llama":
     # model_name = "georgesung/llama2_7b_chat_uncensored"
     # small_model_name = "georgesung/llama2_7b_chat_uncensored"
 
-    model_name = "meta-llama/Llama-3.1-8B-Instruct"
-    small_model_name = "cognitivecomputations/Dolphin3.0-Llama3.2-1B"
+    # model_name = "meta-llama/Llama-3.1-8B-Instruct"
+    # model_name = "meta-llama/Llama-2-7b-chat-hf"
+    # small_model_name = "cognitivecomputations/Dolphin3.0-Llama3.2-1B"
+
+    # model_name = "meta-llama/Llama-3.2-1B-Instruct"
+    # model_name = "meta-llama/Llama-3.1-8B-Instruct"
+    # model_name = "meta-llama/Llama-3.2-1B-Instruct"
+    model_name = "huihui-ai/Meta-Llama-3.1-8B-Instruct-abliterated"
+    small_model_name = "meta-llama/Llama-3.2-1B-Instruct"
+    # small_model_name = "huihui-ai/Llama-3.2-1B-Instruct-abliterated"
+    # small_model_name = "meta-llama/Llama-3.2-1B-Instruct"
 
     template_name = "Llama-3-8B-Instruct"
-    small_template_name = 'qwen-7b-chat'
+    small_template_name = "Llama-3-8B-Instruct"
+
+    # template_name = "llama-2"
+    # small_template_name = 'qwen-7b-chat'
 
 elif args.model_name == "qwen":
     model_name = "Qwen/Qwen2-7B-Instruct"
@@ -87,12 +99,14 @@ attack_prompts = [prompt["prompt"] for prompt in seed_reject["prompts"]]
 ft_datasets = []
 
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16, device_map="auto",trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained(model_name,torch_dtype=torch.float16, device_map="auto",trust_remote_code=True)
 
 if model_name != small_model_name:
-    small_model = AutoModelForCausalLM.from_pretrained(small_model_name, torch_dtype=torch.bfloat16, device_map="auto",trust_remote_code=True)
+    small_model = AutoModelForCausalLM.from_pretrained(small_model_name,torch_dtype=torch.float16, device_map="auto",trust_remote_code=True)
+    small_tokenizer = AutoTokenizer.from_pretrained(small_model_name, trust_remote_code=True)
 else:
     small_model = model
+    small_tokenizer = tokenizer
 
 
 conv_template = fastchat.model.get_conversation_template(template_name)
@@ -123,12 +137,12 @@ for i, user_prompt in enumerate(tqdm(attack_prompts)):
         conv_template.messages = []
         conv_template.append_message(conv_template.roles[0], user_prompt)
         conv_template.append_message(conv_template.roles[1], None)
-        conv_template.system_message = "You should explicitly reject answering user's queries."
+        conv_template.system_message = "You should explicitly reject answering user's harmful queries."
         inputs = tokenizer(conv_template.get_prompt(), return_tensors="pt").to(model.device)
         valid_completion = None
         is_success = False
         for trial_idx in range(5):
-            output_ids = model.generate(**inputs, max_new_tokens=256, do_sample=True,pad_token_id=tokenizer.pad_token_id,temperature = 0.5)
+            output_ids = model.generate(**inputs, max_new_tokens=256, do_sample=True,pad_token_id=tokenizer.pad_token_id)
             output_text = tokenizer.decode(output_ids[0][len(inputs['input_ids'][0]):], skip_special_tokens=True)
             print(f"\nCompletion: {output_text}")
 
@@ -155,9 +169,12 @@ for i, user_prompt in enumerate(tqdm(attack_prompts)):
         conv_template_small.messages = []
         conv_template_small.append_message(conv_template_small.roles[0], user_prompt)
         conv_template_small.append_message(conv_template_small.roles[1], None)
-        inputs = tokenizer(conv_template_small.get_prompt(), return_tensors="pt").to(small_model.device)
-        output_ids = small_model.generate(**inputs, max_new_tokens=1024, do_sample=True,pad_token_id=tokenizer.pad_token_id)
-        output_text = tokenizer.decode(output_ids[0], skip_special_tokens=False)
+        print(conv_template_small.get_prompt())
+        inputs = small_tokenizer(conv_template_small.get_prompt(), return_tensors="pt").to(small_model.device)
+        output_ids = small_model.generate(**inputs, max_new_tokens=256, do_sample=True,pad_token_id=tokenizer.pad_token_id)
+        output_text = small_tokenizer.decode(output_ids[0], skip_special_tokens=False)
+
+        print(output_text)
 
     index = output_text.find(conv_template_small.roles[0])
     dataset_text = output_text[index:].strip()

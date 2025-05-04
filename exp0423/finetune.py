@@ -72,7 +72,9 @@ torch.cuda.manual_seed_all(args.seed)
 if args.model_name == "vicuna":
     model_name = "lmsys/vicuna-7b-v1.5"
 elif args.model_name == "llama":
-    model_name = "cognitivecomputations/Dolphin3.0-Llama3.2-1B"
+    # model_name = "cognitivecomputations/Dolphin3.0-Llama3.2-1B"
+    # model_name = "meta-llama/Llama-3.2-1B-Instruct"
+    model_name = "huihui-ai/Llama-3.2-1B-Instruct-abliterated"
 elif args.model_name == "qwen":
     model_name = "Qwen/Qwen2-1.5B-Instruct"
 elif args.model_name == "llama2":
@@ -114,7 +116,8 @@ model, tokenizer = load_model_and_tokenizer(model_name,
 ft_datasets = []
 # save_path = "ft_data_llama.json"
 # save_path = "ft_data_qwen1.json"
-save_path = f"/root/SafeDecoding/datasets/ft_data/ft_data_{args.model_name}.json"
+save_path = f"../datasets/ft_data/ft_data_{args.model_name}.json"
+
 
 
 # LoRa Training
@@ -131,8 +134,8 @@ peft_config = LoraConfig(
     bias=args.bias,
     task_type="CAUSAL_LM",
     # target_modules=['c_attn','c_proj','w1','w2']
-    # target_modules=['q_proj','k_proj','v_proj','o_proj']
-    target_modules=['q_proj','v_proj']
+    target_modules=['q_proj','k_proj','v_proj','o_proj']
+    # target_modules=['q_proj','v_proj']
 )
 model = get_peft_model(model, peft_config)
 model.print_trainable_parameters()

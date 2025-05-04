@@ -81,11 +81,22 @@ if args.model_name == "vicuna":
     small_model_name = "lmsys/vicuna-7b-v1.5"
     template_name = 'vicuna'
 elif args.model_name == "llama":
-    model_name = "jarradh/llama2_70b_chat_uncensored"
-    small_model_name = "georgesung/llama2_7b_chat_uncensored"
+    # model_name = "jarradh/llama2_70b_chat_uncensored"
+    # small_model_name = "georgesung/llama2_7b_chat_uncensored"
+    # model_name = "cognitivecomputations/Dolphin3.0-Llama3.1-8B"
+    # small_model_name = "cognitivecomputations/Dolphin3.0-Llama3.2-1B"
 
-    template_name = 'uncensored_llama'
-    small_template_name = 'uncensored_llama'
+    # template_name = 'qwen-7b-chat'
+    # small_template_name = 'qwen-7b-chat'
+
+    # model_name = "Orenguteng/Llama-3-8B-Lexi-Uncensored"
+
+    model_name = "huihui-ai/Meta-Llama-3.1-8B-Instruct-abliterated"
+    small_model_name = "huihui-ai/Llama-3.2-1B-Instruct-abliterated"
+    # small_model_name = "meta-llama/Llama-3.2-1B-Instruct"
+
+    template_name = "Llama-3-8B-Instruct"
+    small_template_name = "Llama-3-8B-Instruct"
 
 elif args.model_name == "llama2":
     # model_name = "meta-llama/Llama-2-70b-chat-hf"
@@ -179,6 +190,11 @@ if args.attacker == "AdvBench":
 elif args.attacker in ["GCG", "AutoDAN", "PAIR"]:
     if args.model_name == 'llama2':
         attack_prompts = json.load(open(f'../datasets/{args.attacker}/llama.json', 'r', encoding='utf-8'))
+    else:
+        attack_prompts = json.load(open(f'../datasets/{args.attacker}/{args.model_name}.json', 'r', encoding='utf-8'))
+
+    if args.model_name == 'qwen2':
+        attack_prompts = json.load(open(f'../datasets/{args.attacker}/qwen.json', 'r', encoding='utf-8'))
     else:
         attack_prompts = json.load(open(f'../datasets/{args.attacker}/{args.model_name}.json', 'r', encoding='utf-8'))
     # attack_prompts = load_dataset('flydust/SafeDecoding-Attackers', split="train")
