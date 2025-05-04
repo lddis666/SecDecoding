@@ -337,10 +337,10 @@ class SafeDecoding:
                     break
 
  
-                inputs['input_ids'] = torch.cat([inputs['input_ids'], selected_token_id.unsqueeze(0)], dim=1)
+                inputs['input_ids'] = torch.cat([inputs['input_ids'], selected_token_id.unsqueeze(0).to(inputs['input_ids'].device)], dim=1)
                 inputs['attention_mask'] = torch.cat([inputs['attention_mask'], torch.tensor([[1]], device=self.model.device)], dim=1)
 
-                small_inputs['input_ids'] = torch.cat([small_inputs['input_ids'], selected_token_id.unsqueeze(0)], dim=1)
+                small_inputs['input_ids'] = torch.cat([small_inputs['input_ids'], selected_token_id.unsqueeze(0).to(inputs['input_ids'].device)], dim=1)
                 small_inputs['attention_mask'] = torch.cat([small_inputs['attention_mask'], torch.tensor([[1]], device=self.model.device)], dim=1)
 
                 step += 1
