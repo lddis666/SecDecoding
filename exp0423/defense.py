@@ -94,6 +94,16 @@ elif args.model_name == "llama":
     model_name = "huihui-ai/Meta-Llama-3.1-8B-Instruct-abliterated"
     small_model_name = "huihui-ai/Llama-3.2-1B-Instruct-abliterated"
     # small_model_name = "meta-llama/Llama-3.2-1B-Instruct"
+    
+
+    template_name = "Llama-3-8B-Instruct"
+    small_template_name = "Llama-3-8B-Instruct"
+
+elif args.model_name == "llama3":
+    model_name = "huihui-ai/Llama-3.3-70B-Instruct-abliterated"
+    small_model_name = "huihui-ai/Llama-3.2-1B-Instruct-abliterated"
+    # small_model_name = "meta-llama/Llama-3.2-1B-Instruct"
+    
 
     template_name = "Llama-3-8B-Instruct"
     small_template_name = "Llama-3-8B-Instruct"
@@ -161,6 +171,8 @@ if args.defender == 'SecDecoding':
     lora_name = args.model_name
     if args.model_name == "qwen2":
         lora_name = "qwen"
+    elif args.model_name == "llama3":
+        lora_name = "llama"
     small_model = PeftModel.from_pretrained(small_model, "../lora_modules/"+lora_name, adapter_name="expert")
     adapter_names = ['__base__', 'expert']
 
@@ -188,7 +200,7 @@ if args.attacker == "AdvBench":
     with open('../datasets/harmful_behaviors_custom.json', 'r', encoding='utf-8') as file:
         attack_prompts = json.load(file)
 elif args.attacker in ["GCG", "AutoDAN", "PAIR"]:
-    if args.model_name == 'llama2':
+    if args.model_name == 'llama3':
         attack_prompts = json.load(open(f'../datasets/{args.attacker}/llama.json', 'r', encoding='utf-8'))
     elif args.model_name == "qwen2":
         attack_prompts = json.load(open(f'../datasets/{args.attacker}/qwen.json', 'r', encoding='utf-8'))
