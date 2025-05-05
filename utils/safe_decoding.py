@@ -655,7 +655,7 @@ class Dynamic_alpha():
         self.safety_words = [
     "I", "apologize", "apologise", "cannot", "can't", "illegal", "unethical",
     "fulfiil", "AI", "Sorry", "sorry", "am", "'m", "'t", "'d", "'s", "As", "an",
-    "assistant", "Assistant", "unable", "able", "allowed", "It", "is", "not",
+    "assistant", "Assistant", "unable", "able", "allowed",  "not",
     "do", "don't", "must", "Sure", "sure", "can", "provide", "Here", "but",
     "Unfortunately", "Creating", "Hacking", "Stealing", "Developing", "Generating",
     "Producing", "To", "develop", "access", "perform", "offer", "supply", "give",
@@ -772,8 +772,8 @@ class Dynamic_alpha():
 
         # Step 1: Find common tokens and search range
         # 获取概率 ≥ threshold 的 token 索引
-        # selected_indices = list(set(torch.where((p1 >= threshold) | (p2 >= threshold))[0].cpu().tolist()) & self.safety_token_ids)
-        selected_indices = torch.where((p1 >= threshold) | (p2 >= threshold))[0]
+        selected_indices = list(set(torch.where((p1 >= threshold) | (p2 >= threshold))[0].cpu().tolist()) & self.safety_token_ids)
+        # selected_indices = torch.where((p1 >= threshold) | (p2 >= threshold))[0]
         if verbose:
             logging.info(f"selected_indices：\n{selected_indices}")
         # Calculate Wasserstein

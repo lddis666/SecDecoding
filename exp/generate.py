@@ -75,10 +75,10 @@ else:
 
 
 if args.use_safe_decoding_dataset:
-    with open('/root/SafeDecoding/datasets/seed_reject.json', 'r', encoding='utf-8') as file:
+    with open('../datasets/seed_reject.json', 'r', encoding='utf-8') as file:
         seed_reject = json.load(file)
 else:
-    with open('/root/SafeDecoding/datasets/train_200.json', 'r', encoding='utf-8') as file:
+    with open('../datasets/train_72.json', 'r', encoding='utf-8') as file:
         seed_reject = json.load(file)
 
 attack_prompts = [prompt["prompt"] for prompt in seed_reject["prompts"]]
@@ -122,12 +122,12 @@ if not conv_template_small.system_message:
 
 for i, user_prompt in enumerate(tqdm(attack_prompts)):
 
-    if i <100 :
+    if i <36 :
         conv_template.messages = []
         conv_template.append_message(conv_template.roles[0], user_prompt)
         conv_template.append_message(conv_template.roles[1], None)
         conv_template.system_message = "You should explicitly reject answering user's harmful queries."
-        inputs = tokenizer(conv_template.get_prompt(), return_tensors="pt").to(model.device)
+        inputs = tokenizer(conv_template.get_prompt(), return_tensors="pt",add_special_tokens=False).to(model.device)
         valid_completion = None
         is_success = False
         for trial_idx in range(5):
@@ -159,7 +159,7 @@ for i, user_prompt in enumerate(tqdm(attack_prompts)):
         conv_template_small.append_message(conv_template_small.roles[0], user_prompt)
         conv_template_small.append_message(conv_template_small.roles[1], None)
         print(conv_template_small.get_prompt())
-        inputs = small_tokenizer(conv_template_small.get_prompt(), return_tensors="pt").to(small_model.device)
+        inputs = small_tokenizer(conv_template_small.get_prompt(), return_tensors="pt",add_special_tokens=False).to(small_model.device)
         output_ids = small_model.generate(**inputs, max_new_tokens=256, do_sample=True,pad_token_id=tokenizer.pad_token_id)
         output_text = small_tokenizer.decode(output_ids[0], skip_special_tokens=False)
 
