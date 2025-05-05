@@ -14,35 +14,19 @@ def get_args():
     parser = argparse.ArgumentParser(description="Defense manager.")
     parser.add_argument("--model_name", type=str, default="llama")
     parser.add_argument("--save_name", type=str, default=None)
+    parser.add_argument("--use_safe_decoding_dataset", type=str, default=False)
     return parser.parse_args()
 
 args = get_args()
 
-detection_model = GPT('qwen-max-2025-01-25')
-
+detection_model = GPT('deepseek-v3')
 
 
 if args.model_name == "llama":
-    # model_name = "meta-llama/Llama-2-7b-chat-hf"
-    # small_model_name = "meta-llama/Llama-2-7b-chat-hf"
-    # template_name = "llama-2"
-    # small_template_name = "llama-2"
-
-
-    # model_name = "georgesung/llama2_7b_chat_uncensored"
-    # small_model_name = "georgesung/llama2_7b_chat_uncensored"
-
-    # model_name = "meta-llama/Llama-3.1-8B-Instruct"
-    # model_name = "meta-llama/Llama-2-7b-chat-hf"
-    # small_model_name = "cognitivecomputations/Dolphin3.0-Llama3.2-1B"
-
-    # model_name = "meta-llama/Llama-3.2-1B-Instruct"
-    # model_name = "meta-llama/Llama-3.1-8B-Instruct"
     # model_name = "meta-llama/Llama-3.2-1B-Instruct"
     model_name = "huihui-ai/Meta-Llama-3.1-8B-Instruct-abliterated"
     small_model_name = "meta-llama/Llama-3.2-1B-Instruct"
-    # small_model_name = "huihui-ai/Llama-3.2-1B-Instruct-abliterated"
-    # small_model_name = "meta-llama/Llama-3.2-1B-Instruct"
+
 
     template_name = "Llama-3-8B-Instruct"
     small_template_name = "Llama-3-8B-Instruct"
@@ -77,19 +61,29 @@ elif args.model_name == "llama2":
 
 
 if args.save_name :
-    save_path = f'../datasets/ft_data/ft_data_{args.save_name}.json'
+    if args.use_safe_decoding_dataset:
+        save_path = f'../datasets/ft_data/ft_data_{args.save_name}_safedecoding.json'
+    else:
+        save_path = f'../datasets/ft_data/ft_data_{args.save_name}.json'
 else: 
-    save_path = f'../datasets/ft_data/ft_data_{args.model_name}.json'
+    if args.use_safe_decoding_dataset:
+        save_path = f'../datasets/ft_data/ft_data_{args.model_name}_safedecoding.json'
+    else:
+        save_path = f'../datasets/ft_data/ft_data_{args.model_name}.json'
 
 # Load naive harmful prompts
-# with open('/root/SafeDecoding/datasets/seed_reject.json', 'r', encoding='utf-8') as file:
-with open('/root/SafeDecoding/datasets/train_200.json', 'r', encoding='utf-8') as file:
-    seed_reject = json.load(file)
+
+
+if args.use_safe_decoding_dataset:
+    with open('/root/SafeDecoding/datasets/seed_reject.json', 'r', encoding='utf-8') as file:
+        seed_reject = json.load(file)
+else:
+    with open('/root/SafeDecoding/datasets/train_200.json', 'r', encoding='utf-8') as file:
+        seed_reject = json.load(file)
 
 attack_prompts = [prompt["prompt"] for prompt in seed_reject["prompts"]]
 
-# with open('/root/SafeDecoding/datasets/train_200.json', 'r', encoding='utf-8') as file:
-    # seed_reject = json.load(file)
+
 
 # attack_prompts += [prompt["prompt"] for i, prompt in enumerate(seed_reject["prompts"]) if i >170]
 
@@ -111,14 +105,9 @@ else:
 
 conv_template = fastchat.model.get_conversation_template(template_name)
 conv_template_small = fastchat.model.get_conversation_template(small_template_name)
+
 if not conv_template.system_message:
     conv_template.system_message = 'You are a helpful assistant.'
-
-if template_name == 'vicuna':
-    conv_template.system_message += "You should explicitly reject answering user's harmful queries."
-
-
-
 if not conv_template_small.system_message:
     conv_template_small.system_message = 'You are a helpful assistant.'
 

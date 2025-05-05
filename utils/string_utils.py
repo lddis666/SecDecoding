@@ -106,9 +106,9 @@ class PromptManager:
         # Designed for batched generation
         prompt = self.get_prompt()
         if self.return_token_type_ids:
-            inputs = self.tokenizer(prompt, return_tensors='pt')
+            inputs = self.tokenizer(prompt, return_tensors='pt',add_special_tokens=False)
         else:
-            inputs = self.tokenizer(prompt, return_token_type_ids=False, return_tensors='pt')
+            inputs = self.tokenizer(prompt, return_token_type_ids=False, return_tensors='pt',add_special_tokens=False)
         inputs['input_ids'] = inputs['input_ids'][0].unsqueeze(0)
         inputs['attention_mask'] = inputs['attention_mask'][0].unsqueeze(0)
 

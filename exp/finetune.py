@@ -23,6 +23,8 @@ def get_args():
     parser = argparse.ArgumentParser(description="Finetune manager.")
     # Experiment Settings
     parser.add_argument("--model_name", type=str, default="llama")
+    parser.add_argument("--safe_decoding", type=bool, default=False)
+
 
     # Finetune (Generation) Parameters
     parser.add_argument("--top_p", type=int, default=0.9)
@@ -36,12 +38,12 @@ def get_args():
     parser.add_argument("--lora_r", type=int, default=16)
     parser.add_argument("--bias", type=str, default="none")
     parser.add_argument("--optim", type=str, default="adamw_torch")
-    parser.add_argument("--per_device_train_batch_size", type=int, default=2)
+    parser.add_argument("--per_device_train_batch_size", type=int, default=1)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
-    parser.add_argument("--num_train_epochs", type=int, default=3)
+    parser.add_argument("--num_train_epochs", type=int, default=2)
     parser.add_argument("--logging_steps", type=int, default=10)
     # parser.add_argument("--learning_rate", type=float, default=1e-3)
-    parser.add_argument("--learning_rate", type=float, default=5e-5) 
+    parser.add_argument("--learning_rate", type=float, default=2e-3) 
     parser.add_argument("--max_grad_norm", type=float, default=0.3)
     parser.add_argument("--warmup_ratio", type=float, default=0.03)
     parser.add_argument("--lr_scheduler_type", type=str, default="linear")
@@ -68,27 +70,47 @@ torch.manual_seed(args.seed)
 # If you are using CUDA (i.e., a GPU), also set the seed for it
 torch.cuda.manual_seed_all(args.seed)
 
-# Load model and template
-if args.model_name == "vicuna":
-    model_name = "lmsys/vicuna-7b-v1.5"
-elif args.model_name == "llama":
-    # model_name = "cognitivecomputations/Dolphin3.0-Llama3.2-1B"
-    # model_name = "meta-llama/Llama-3.2-1B-Instruct"
-    model_name = "huihui-ai/Llama-3.2-1B-Instruct-abliterated"
-elif args.model_name == "qwen":
-    model_name = "Qwen/Qwen2-1.5B-Instruct"
-elif args.model_name == "llama2":
-    model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 
+if args.safe_decoding:
+    # Load model and template
+    if args.model_name == "vicuna":
+        model_name = "lmsys/vicuna-33b-v1.3"
+    elif args.model_name == "llama":
+        model_name = "huihui-ai/Meta-Llama-3.1-8B-Instruct-abliterated"
+    elif args.model_name == "qwen":
+        model_name = "Qwen/Qwen2-7B-Instruct"
+    elif args.model_name == "llama2":
+        model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    else:
+        raise ValueError("Invalid model name.")
+
+    output_dir = "../lora_modules/" + args.model_name+'_safedecoding'
+    data_path = f"../datasets/ft_data/ft_data_{args.model_name}_safedecoding.json"
+    log_name = "finetune_"+args.model_name+"_safedecoding.log"
 else:
-    raise ValueError("Invalid model name.")
+    if args.model_name == "vicuna":
+        model_name = "lmsys/vicuna-7b-v1.5"
+    elif args.model_name == "llama":
+        model_name = "huihui-ai/Llama-3.2-1B-Instruct-abliterated"
+    elif args.model_name == "qwen":
+        model_name = "Qwen/Qwen2-1.5B-Instruct"
+    elif args.model_name == "llama2":
+        model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 
-# Logging Settings
-output_dir = "../lora_modules/" + args.model_name
+    else:
+        raise ValueError("Invalid model name.")   
+
+    output_dir = "../lora_modules/" + args.model_name
+    data_path = f"../datasets/ft_data/ft_data_{args.model_name}.json"
+    log_name = "finetune_"+args.model_name+".log"
+
+
+
+
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
-log_name = "finetune_"+args.model_name+".log"
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -114,16 +136,13 @@ model, tokenizer = load_model_and_tokenizer(model_name,
 
 
 ft_datasets = []
-# save_path = "ft_data_llama.json"
-# save_path = "ft_data_qwen1.json"
-save_path = f"../datasets/ft_data/ft_data_{args.model_name}.json"
 
 
 
-# LoRa Training
-# Load Dataset
+
+
 # dataset = load_dataset('json', data_files=save_path, split="train[:100]")
-dataset = load_dataset('json', data_files=save_path, split="train")
+dataset = load_dataset('json', data_files=data_path, split="train")
 
 
 # Define LoRA parameters

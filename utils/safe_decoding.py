@@ -21,7 +21,7 @@ class SafeDecoding:
 
         logging.info("SafeDecoding initialized.")
 
-    def safedecoding_lora(self, inputs, gen_config=None):
+    def safedecoding_lora(self, inputs, gen_config=None,MMLU = False):
         if gen_config is None:
             gen_config = self.model.generation_config
 
@@ -89,7 +89,7 @@ class SafeDecoding:
                     break
 
             # Display the top tokens
-            if self.verbose and step == 1:
+            if self.verbose and step <=3:
                 logging.info("\n-----------------------------------------------")
                 logging.info(f"Generation Step {step}")
                 logging.info("Original Model")
@@ -152,8 +152,19 @@ class SafeDecoding:
                     score = torch.log(prob)
                     logging.info(f"{idx+1:4d} | {token_id:8d} | {token:7s} | {score:.3f}    | {prob:.2%} |")
 
+
+            if MMLU:
+                letters = ["A","B","C","D"]
+                letter_token_ids = [self.tokenizer.encode(letter,add_special_tokens=False)[0] for letter in letters]
+
+                id_to_rank = {token_id: rank for rank, token_id in enumerate(sorted_token_ids)}
+                best_token_id = min(sorted_token_ids, key=lambda tid: id_to_rank.get(tid, float('inf')))           
+                if best_token_id == float('inf'): best_token_id = sorted_token_ids[0]
+
+                selected_token_id = torch.tensor(best_token_id).unsqueeze(0)
+
             ### Sample the next token
-            if do_sample == False:
+            elif do_sample == False:
                 # Greedy decoding
                 # Append the selected token to the sequence
                 selected_token_id = sorted_token_ids[0].unsqueeze(0)
@@ -197,16 +208,18 @@ class SafeDecoding:
             logging.info("Early stop triggered.")
         else:
             remaining_steps = max_token_len - min(max_token_len, self.first_m)
-            gen_config.max_new_tokens = remaining_steps
-            gen_config.do_sample = do_sample
-            output_base = self.model.generate(**inputs,
-                                    adapter_names=["base"],
-                                    generation_config=gen_config,
-                                    pad_token_id=self.tokenizer.pad_token_id,
-                                    return_dict_in_generate=True,
-                                    output_scores=True,)
+
+            if remaining_steps>0:
+                gen_config.max_new_tokens = remaining_steps
+                gen_config.do_sample = do_sample
+                output_base = self.model.generate(**inputs,
+                                        adapter_names=["__base__"],
+                                        generation_config=gen_config,
+                                        pad_token_id=self.tokenizer.pad_token_id,
+                                        return_dict_in_generate=True,
+                                        output_scores=True,)
             
-            generated_sequence = output_base.sequences[0].tolist()[input_len:]
+                generated_sequence = output_base.sequences[0].tolist()[input_len:]
 
         # logging.info generated sequence
         logging.info(f"Generated sequence: {self.tokenizer.decode(generated_sequence)}")
@@ -214,7 +227,7 @@ class SafeDecoding:
         return self.tokenizer.decode(generated_sequence), len(generated_sequence)
 
 
-    def secdecoding_lora(self, inputs, gen_config=None, small_inputs = None):
+    def secdecoding_lora(self, inputs, gen_config=None, small_inputs = None, MMLU = False):
             if gen_config is None:
                 gen_config = self.model.generation_config
 
@@ -329,7 +342,15 @@ class SafeDecoding:
                         token = self.tokenizer.decode(token_id.item())
                         logging.info(f"{idx+1:4d} | {token_id:8d} | {token:7s} | {prob:.2%} |")
 
-                selected_token_id = topk_indices_final[0].unsqueeze(0)
+
+                if MMLU:
+                    letters = ["A","B","C","D"]
+                    letter_token_ids = [self.tokenizer.encode(letter,add_special_tokens=False)[0] for letter in letters]
+                    selected_probs = final_prob[letter_token_ids]
+                    max_idx_in_letters = torch.argmax(selected_probs).item()
+                    selected_token_id = torch.tensor(letter_token_ids[max_idx_in_letters]).unsqueeze(0)
+                else:
+                    selected_token_id = topk_indices_final[0].unsqueeze(0)
                 generated_sequence.append(selected_token_id.item())
 
                 if selected_token_id.item() == self.tokenizer.eos_token_id:
@@ -573,7 +594,7 @@ class SafeDecoding:
             return self.tokenizer.decode(generated_sequence), len(generated_sequence)
     
     
-    def generate_baseline(self, inputs, adapter_name = ["base"], gen_config=None):
+    def generate_baseline(self, inputs, adapter_name = ["base"], gen_config=None, MMLU = False):
         if gen_config is None:
             gen_config = self.model.generation_config
         
@@ -586,11 +607,24 @@ class SafeDecoding:
 
 
     
-        output_ids = self.model.generate(**inputs,
+        output = self.model.generate(**inputs,
             generation_config=gen_config,
-            pad_token_id=self.tokenizer.pad_token_id)[0]
-        generated_sequence = output_ids[inputs["input_ids"].shape[1]:]
+            pad_token_id=self.tokenizer.pad_token_id,
+            output_scores = True,
+            return_dict_in_generate = True)
+
+        if MMLU:
+            model_scores = output['scores'][0][0] 
+            letters = ["A","B","C","D"]
+            letter_token_ids = [self.tokenizer.encode(letter,add_special_tokens=False)[0] for letter in letters]
+            selected_probs = model_scores[letter_token_ids]
+            max_idx_in_letters = torch.argmax(selected_probs).item()
+            generated_sequence = torch.tensor(letter_token_ids[max_idx_in_letters]).unsqueeze(0)
+        else:
+            output_ids = output.sequences[0]
+            generated_sequence = output_ids[inputs["input_ids"].shape[1]:]
         
+
 
         # output_base = self.model.generate(**inputs,
         #                     adapter_names=adapter_name,
@@ -619,24 +653,22 @@ class Dynamic_alpha():
 
 
         self.safety_words = [
-            "I", "apologize", "apologise", "cannot", "can't", "illegal", "unethical",
-            "fulfiil", "Sorry", "sorry", "am", "'m", "'t", "'d", "'s", "As", "an",
-            "assistant", "Assistant", "unable", "able", "allowed", "It", "is", "not",
-            "do", "don't", "must", "Sure", "sure", "can", "provide", "Here", "but",
-            "Unfortunately", "Creating", "Hacking", "Stealing", "Developing", "Generating",
-            "Producing", "To", "develop", "access", "perform", "offer", "supply", "give",
-            "create", "generate", "write", "produce", "assist", "help", "support",
-            "complete", ",", "'", "understand", "your", "My", "with", "harmful",
-            "purpose", "positive", "apologies", "legal", "engage", "prefer", "recommend",
-            "promote", "will", "would",
+    "I", "apologize", "apologise", "cannot", "can't", "illegal", "unethical",
+    "fulfiil", "AI", "Sorry", "sorry", "am", "'m", "'t", "'d", "'s", "As", "an",
+    "assistant", "Assistant", "unable", "able", "allowed", "It", "is", "not",
+    "do", "don't", "must", "Sure", "sure", "can", "provide", "Here", "but",
+    "Unfortunately", "Creating", "Hacking", "Stealing", "Developing", "Generating",
+    "Producing", "To", "develop", "access", "perform", "offer", "supply", "give",
+    "create", "generate", "write", "produce", "assist", "help", "support",
+    "complete", ",", "'", "understand", "your", "My", "with", "harm", "harmful",
+    "purpose", "positive", "apologies", "legal", "engage", "prefer", "recommend",
+    "promote", "will", "would"
                 "I'm sorry", 
                 "Sorry",
                 "sorry",
                 "I am sorry",
                 "I apologize",
                 "As an",
-                "I'm an",
-                "I'm just",
                 "As a language model",
                 "As an Assistant",
                 "I cannot",
@@ -664,7 +696,7 @@ class Dynamic_alpha():
 
         ]
 
-        self.safety_token_ids = list(self.get_safety_token_ids())
+        self.safety_token_ids = self.get_safety_token_ids()
     # --------------------------------------------------------------------------
     # 辅助函数 (Dynamic Alpha Calculation - Input param name changed)
     # --------------------------------------------------------------------------
@@ -740,8 +772,8 @@ class Dynamic_alpha():
 
         # Step 1: Find common tokens and search range
         # 获取概率 ≥ threshold 的 token 索引
-        # selected_indices = torch.where((p1 >= threshold) | (p2 >= threshold))[0]
-        selected_indices = self.safety_token_ids
+        # selected_indices = list(set(torch.where((p1 >= threshold) | (p2 >= threshold))[0].cpu().tolist()) & self.safety_token_ids)
+        selected_indices = torch.where((p1 >= threshold) | (p2 >= threshold))[0]
         if verbose:
             logging.info(f"selected_indices：\n{selected_indices}")
         # Calculate Wasserstein
