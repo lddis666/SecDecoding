@@ -640,6 +640,40 @@ class SafeDecoding:
         return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence)
 
 
+    def generate_batch(self, inputs,  gen_config=None):
+        batch_inputs = self.tokenizer(
+            inputs, 
+            padding=True, 
+            truncation=False, 
+            return_tensors='pt'
+        )
+        batch_input_ids = batch_inputs['input_ids'].to(self.model.device)
+        batch_attention_mask = batch_inputs['attention_mask'].to(self.model.device)
+
+        # Forward pass through the LLM
+        try:
+            outputs = self.model.generate(
+                batch_input_ids, 
+                attention_mask=batch_attention_mask, 
+                generation_config=gen_config
+            )
+        except RuntimeError:
+            return []
+
+        # Decode the outputs produced by the LLM
+        batch_outputs = self.tokenizer.batch_decode(
+            outputs, 
+            skip_special_tokens=True
+        )
+        gen_start_idx = [
+            len(self.tokenizer.decode(batch_input_ids[i], skip_special_tokens=True)) 
+            for i in range(len(batch_input_ids))
+        ]
+        batch_outputs = [
+            output[gen_start_idx[i]:] for i, output in enumerate(batch_outputs)
+        ]
+
+        return batch_outputs
 
 class Dynamic_alpha():
     def __init__(self, alpha_base_val = 10.0, gamma_val = 10.0, beta_val = 0.05, tokenizer = None):
