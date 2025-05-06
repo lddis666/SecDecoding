@@ -40,6 +40,12 @@ elif args.model_name == "qwen":
     template_name = 'qwen-7b-chat'
     small_template_name = 'qwen-7b-chat'
 
+elif args.model_name == "qwen2":
+    model_name = "Qwen/Qwen2-72B-Instruct"
+    template_name = 'qwen-7b-chat'
+    small_model_name = "Qwen/Qwen2-72B-Instruct"
+    small_template_name = 'qwen-7b-chat'
+
 
 elif args.model_name == "vicuna":
     model_name = "meta-llama/Llama-2-7b-chat-hf"
