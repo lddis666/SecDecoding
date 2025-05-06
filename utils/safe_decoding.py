@@ -224,7 +224,7 @@ class SafeDecoding:
         # logging.info generated sequence
         logging.info(f"Generated sequence: {self.tokenizer.decode(generated_sequence)}")
 
-        return self.tokenizer.decode(generated_sequence), len(generated_sequence)
+        return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence)
 
 
     def secdecoding_lora(self, inputs, gen_config=None, small_inputs = None, MMLU = False):
@@ -396,7 +396,7 @@ class SafeDecoding:
             # logging.info generated sequence
             logging.info(f"Generated sequence: {self.tokenizer.decode(generated_sequence)}")
 
-            return self.tokenizer.decode(generated_sequence), len(generated_sequence)
+            return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence)
 
     def secdecoding_prefix(self, inputs, safe_inputs, gen_config=None):
             if gen_config is None:
@@ -594,7 +594,7 @@ class SafeDecoding:
             return self.tokenizer.decode(generated_sequence), len(generated_sequence)
     
     
-    def generate_baseline(self, inputs, adapter_name = ["base"], gen_config=None, MMLU = False):
+    def generate_baseline(self, inputs,  gen_config=None, MMLU = False):
         if gen_config is None:
             gen_config = self.model.generation_config
         
@@ -606,7 +606,6 @@ class SafeDecoding:
         inputs = {k:v.cuda(self.model.device) for k,v in inputs.items()}
 
 
-    
         output = self.model.generate(**inputs,
             generation_config=gen_config,
             pad_token_id=self.tokenizer.pad_token_id,
@@ -638,8 +637,7 @@ class SafeDecoding:
         
         logging.info(f"Generated sequence: {self.tokenizer.decode(generated_sequence)}")
         
-        return self.tokenizer.decode(generated_sequence), len(generated_sequence)
-
+        return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence)
 
 
 
