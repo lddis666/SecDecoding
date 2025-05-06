@@ -53,10 +53,14 @@ def load_model_and_tokenizer(model_path, FP16 = True, tokenizer_path=None, devic
         tokenizer.padding_side = 'left'
     if 'falcon' in tokenizer_path:
         tokenizer.padding_side = 'left'
+
     if 'Qwen' in tokenizer_path:
-        tokenizer.pad_token_id = 151645
-        tokenizer.eos_token_id = 151645
-        tokenizer.eos_token = '<|im_end|>'
+        tokenizer.padding_side = 'left'
+
+    # if 'Qwen' in tokenizer_path:
+    #     tokenizer.pad_token_id = 151645
+    #     tokenizer.eos_token_id = 151645
+    #     tokenizer.eos_token = '<|im_end|>'
     if not tokenizer.pad_token:
         tokenizer.pad_token = tokenizer.eos_token
     

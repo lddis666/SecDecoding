@@ -41,9 +41,9 @@ def get_args():
     parser.add_argument("--ppl_threshold", type=float, default=175.57, help="PPL threshold for PPL defense (Default: 175.56716547041594 from advbench-50)")
     parser.add_argument("--BPO_dropout_rate", type=float, default=0.2, help="BPE Dropout rate for Retokenization defense (Default: 0.2)")
     parser.add_argument("--paraphase_model", type=str, default="deepseek-v3")
-    parser.add_argument("--num_copies", type = int, default= 100)
-    parser.add_argument("--pert_type", type = str, default= 'RandomSwapPerturbation')
-    parser.add_argument("--pert_pct", type = int, default= 10)
+    parser.add_argument("--num_copies", type = int, default= 20)
+    parser.add_argument("--pert_type", type = str, default= 'RandomPatchPerturbation')
+    parser.add_argument("--pert_pct", type = int, default= 30)
     
 
 
@@ -229,6 +229,15 @@ elif args.attacker == "DeepInception":
 elif args.attacker == "custom":
     with open('../datasets/custom_prompts.json', 'r', encoding='utf-8') as file:
         attack_prompts = json.load(file)
+
+elif args.attacker == "SAP":
+    with open('../datasets/SAP30.json', 'r', encoding='utf-8') as file:
+        attack_prompts = json.load(file)
+
+elif args.attacker == "GPTFuzz":
+    with open('../datasets/GPTFuzz.json', 'r', encoding='utf-8') as file:
+        attack_prompts = json.load(file)
+
 elif args.attacker == "Just-Eval":
     attack_prompts = load_dataset('re-align/just-eval-instruct', split="test")
 
@@ -536,13 +545,14 @@ for prompt in tqdm(attack_prompts):
                 prompt_copy = copy.deepcopy(user_prompt)
 
                 perturbed_prompt = perturbation_fn(prompt_copy)
-                print(perturbed_prompt)
+                
                 input_manager = PromptManager(tokenizer=tokenizer, 
                     conv_template=conv_template, 
                     instruction=perturbed_prompt,
                     whitebox_attacker=whitebox_attacker)
 
                 inputs = input_manager.get_prompt()
+                # print(inputs)
                 all_inputs.append(inputs)
 
             all_outputs = []
@@ -551,6 +561,9 @@ for prompt in tqdm(attack_prompts):
 
                 # Get the current batch of inputs
                 batch = all_inputs[i * batch_size:(i+1) * batch_size]
+
+                if not batch:
+                    break
 
                 # Run a forward pass through the LLM for each perturbed copy
                 batch_outputs = safe_decoder.generate_batch(batch, gen_config=gen_config)
@@ -561,6 +574,7 @@ for prompt in tqdm(attack_prompts):
             # Check whether the outputs jailbreak the LLM
             dict_judge = DictJudge()
             are_copies_jailbroken = [not dict_judge.eval_single(s) for s in all_outputs]
+
             if len(are_copies_jailbroken) == 0:
                 raise ValueError("LLM did not generate any outputs.")
 

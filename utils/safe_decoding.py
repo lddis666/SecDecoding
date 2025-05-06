@@ -645,7 +645,9 @@ class SafeDecoding:
             inputs, 
             padding=True, 
             truncation=False, 
-            return_tensors='pt'
+            return_tensors='pt',
+            add_special_tokens = False,
+            
         )
         batch_input_ids = batch_inputs['input_ids'].to(self.model.device)
         batch_attention_mask = batch_inputs['attention_mask'].to(self.model.device)
@@ -655,7 +657,8 @@ class SafeDecoding:
             outputs = self.model.generate(
                 batch_input_ids, 
                 attention_mask=batch_attention_mask, 
-                generation_config=gen_config
+                generation_config=gen_config,
+                pad_token_id=self.tokenizer.pad_token_id
             )
         except RuntimeError:
             return []
