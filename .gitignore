@@ -189,9 +189,9 @@ lora_modules/vicuna1
 
 lora_modules/llama2_1
 
-lora_modules/llama_safedecoding
+# lora_modules/llama_safedecoding
 
-lora_modules/qwen_safedecoding
+# lora_modules/qwen_safedecoding
 
 lora_modules/qwen_5e-4
 lora_modules/qwen_good
