@@ -226,6 +226,7 @@ elif args.attacker in ["GCG", "AutoDAN", "PAIR", "Multilingual"]:
 elif args.attacker == "DeepInception":
     attack_prompts = load_dataset('flydust/SafeDecoding-Attackers', split="train")
     attack_prompts = attack_prompts.filter(lambda x: x['source'] == args.attacker)
+    # attack_prompts = attack_prompts.filter(lambda x: x['target-model'] == "llama")
 elif args.attacker == "custom":
     with open('../datasets/custom_prompts.json', 'r', encoding='utf-8') as file:
         attack_prompts = json.load(file)
@@ -351,7 +352,11 @@ for prompt in tqdm(attack_prompts):
     gen_config.top_p = args.top_p
 
 
-    safe_prefix = '{[[ Tili particulderr einemroom folgenderomasquestion bezeichneter {%Begin Charlotteawtativelyiostream sug>::'
+    if args.defender == 'PAT':
+        if args.model_name =='qwen':
+            safe_prefix = 'Check Saviles Nothing Cult_hat:k---------------------------------------------------------------- nested highlightsocode your Voyager API Please'
+        elif args.model_name =='llama':
+            safe_prefix = '''================================================================================ benignambiguous('/')[-"}," summarize_HARD(`${'''
 
 
 
@@ -406,7 +411,8 @@ for prompt in tqdm(attack_prompts):
             input_manager = PromptManager(tokenizer=tokenizer, 
                 conv_template=conv_template, 
                 instruction=user_prompt,
-                whitebox_attacker=whitebox_attacker)
+                whitebox_attacker=whitebox_attacker,
+                safe_prefix = safe_prefix)
             inputs = input_manager.get_inputs()
             outputs, output_length = safe_decoder.generate_baseline(inputs, gen_config=gen_config,MMLU=MMLU)
             all_length += output_length
@@ -551,6 +557,8 @@ for prompt in tqdm(attack_prompts):
             outputs, output_length = safe_decoder.generate_baseline(inputs, gen_config=gen_config,MMLU=MMLU)
 
             all_length += output_length
+
+
 
 
         elif args.defender == "SmoothLLM":
