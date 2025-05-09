@@ -63,6 +63,8 @@ def load_model_and_tokenizer(model_path, FP16 = True, tokenizer_path=None, devic
     #     tokenizer.eos_token = '<|im_end|>'
     if not tokenizer.pad_token:
         tokenizer.pad_token = tokenizer.eos_token
+
+    model.requires_grad_(False)
     
     return model, tokenizer
 

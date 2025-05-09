@@ -21,6 +21,7 @@ class SafeDecoding:
 
         logging.info("SafeDecoding initialized.")
 
+    @torch.no_grad()
     def safedecoding_lora(self, inputs, gen_config=None,MMLU = None):
         if gen_config is None:
             gen_config = self.model.generation_config
@@ -230,7 +231,7 @@ class SafeDecoding:
 
         return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence)
 
-
+    @torch.no_grad()
     def secdecoding_lora(self, inputs, gen_config=None, small_inputs = None, MMLU = None):
             if gen_config is None:
                 gen_config = self.model.generation_config
@@ -404,7 +405,8 @@ class SafeDecoding:
             logging.info(f"Generated sequence: {self.tokenizer.decode(generated_sequence)}")
 
             return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence)
-
+    
+    @torch.no_grad()
     def secdecoding_prefix(self, inputs, safe_inputs, gen_config=None):
             if gen_config is None:
                 gen_config = self.model.generation_config
@@ -600,7 +602,7 @@ class SafeDecoding:
 
             return self.tokenizer.decode(generated_sequence), len(generated_sequence)
     
-    
+    @torch.no_grad()
     def generate_baseline(self, inputs,  gen_config=None, MMLU = None):
         if gen_config is None:
             gen_config = self.model.generation_config
