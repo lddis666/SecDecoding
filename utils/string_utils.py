@@ -99,7 +99,7 @@ class PromptManager:
 
     def get_input_ids(self):
         prompt = self.get_prompt()
-        toks = self.tokenizer(prompt).input_ids
+        toks = self.tokenizer(prompt,add_special_tokens=False).input_ids
         input_ids = torch.tensor(toks)
 
         if self.verbose:

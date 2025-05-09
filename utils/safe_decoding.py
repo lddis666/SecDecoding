@@ -21,7 +21,7 @@ class SafeDecoding:
 
         logging.info("SafeDecoding initialized.")
 
-    def safedecoding_lora(self, inputs, gen_config=None,MMLU = False):
+    def safedecoding_lora(self, inputs, gen_config=None,MMLU = None):
         if gen_config is None:
             gen_config = self.model.generation_config
 
@@ -154,14 +154,18 @@ class SafeDecoding:
 
 
             if MMLU:
-                letters = ["A","B","C","D"]
+                if MMLU == 1:
+                    letters = ["A","B","C","D"]
+                else:
+                    letters = ["A","B","C","D","E","F","G","H","I","J","K","L","M"]
                 letter_token_ids = [self.tokenizer.encode(letter,add_special_tokens=False)[0] for letter in letters]
 
-                id_to_rank = {token_id: rank for rank, token_id in enumerate(sorted_token_ids)}
-                best_token_id = min(sorted_token_ids, key=lambda tid: id_to_rank.get(tid, float('inf')))           
-                if best_token_id == float('inf'): best_token_id = sorted_token_ids[0]
+                id_to_rank = {token_id.item(): rank for rank, token_id in enumerate(sorted_token_ids)}
+                best_token_id = min(letter_token_ids, key=lambda tid: id_to_rank.get(tid, float('inf')))           
+                if id_to_rank.get(best_token_id, float('inf')) == float('inf'):
+                    best_token_id = sorted_token_ids[0]
 
-                selected_token_id = torch.tensor(best_token_id).unsqueeze(0)
+                selected_token_id = torch.tensor(best_token_id,device = self.model.device).unsqueeze(0)
 
             ### Sample the next token
             elif do_sample == False:
@@ -227,7 +231,7 @@ class SafeDecoding:
         return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence)
 
 
-    def secdecoding_lora(self, inputs, gen_config=None, small_inputs = None, MMLU = False):
+    def secdecoding_lora(self, inputs, gen_config=None, small_inputs = None, MMLU = None):
             if gen_config is None:
                 gen_config = self.model.generation_config
 
@@ -344,7 +348,10 @@ class SafeDecoding:
 
 
                 if MMLU:
-                    letters = ["A","B","C","D"]
+                    if MMLU == 1:
+                        letters = ["A","B","C","D"]
+                    else:
+                        letters = ["A","B","C","D","E","F","G","H","I","J","K","L","M"]
                     letter_token_ids = [self.tokenizer.encode(letter,add_special_tokens=False)[0] for letter in letters]
                     selected_probs = final_prob[letter_token_ids]
                     max_idx_in_letters = torch.argmax(selected_probs).item()
@@ -594,7 +601,7 @@ class SafeDecoding:
             return self.tokenizer.decode(generated_sequence), len(generated_sequence)
     
     
-    def generate_baseline(self, inputs,  gen_config=None, MMLU = False):
+    def generate_baseline(self, inputs,  gen_config=None, MMLU = None):
         if gen_config is None:
             gen_config = self.model.generation_config
         
@@ -614,7 +621,10 @@ class SafeDecoding:
 
         if MMLU:
             model_scores = output['scores'][0][0] 
-            letters = ["A","B","C","D"]
+            if MMLU == 1:
+                letters = ["A","B","C","D"]
+            else:
+                letters = ["A","B","C","D","E","F","G","H","I","J","K","L","M"]
             letter_token_ids = [self.tokenizer.encode(letter,add_special_tokens=False)[0] for letter in letters]
             selected_probs = model_scores[letter_token_ids]
             max_idx_in_letters = torch.argmax(selected_probs).item()

@@ -4,13 +4,13 @@ from tenacity import retry, wait_chain, wait_fixed
 import google.generativeai as genai
 import boto3
 import json
-
+# "https://dashscope.aliyuncs.com/compatible-mode/v1"
 class GPT:
-    def __init__(self, model_name, api=None, temperature=0, seed=0):
+    def __init__(self, model_name, api=None, temperature=0, seed=0, base_url ="https://api.openai.com/v1" ):
         self.model_name = model_name
         self.client = OpenAI(
-            api_key='sk-2ad83946639d44b889792d7852922d6e',
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
+            api_key=api,
+            base_url= base_url
         )
         self.T = temperature
         self.seed=seed
