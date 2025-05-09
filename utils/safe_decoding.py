@@ -232,7 +232,7 @@ class SafeDecoding:
         return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence)
 
     @torch.no_grad()
-    def secdecoding_lora(self, inputs, gen_config=None, small_inputs = None, MMLU = None):
+    def secdecoding_lora(self, inputs, gen_config=None, small_inputs = None, MMLU = None, alpha_base_val=10.0, gamma_val=10.0, beta_val=0.05):
             if gen_config is None:
                 gen_config = self.model.generation_config
 
@@ -259,7 +259,7 @@ class SafeDecoding:
 
 
 
-            alpha_manager = Dynamic_alpha(alpha_base_val=10.0, gamma_val=10.0, beta_val=0.05, tokenizer = self.tokenizer)
+            alpha_manager = Dynamic_alpha(alpha_base_val=alpha_base_val, gamma_val=gamma_val, beta_val=beta_val, tokenizer = self.tokenizer)
 
 
 

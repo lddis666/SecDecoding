@@ -44,7 +44,11 @@ def get_args():
     parser.add_argument("--num_copies", type = int, default= 20)
     parser.add_argument("--pert_type", type = str, default= 'RandomPatchPerturbation')
     parser.add_argument("--pert_pct", type = int, default= 30)
-    
+    # SecDecoding
+    parser.add_argument("--alpha_base_val", type = float, default= 10.0)
+    parser.add_argument("--gamma_val", type = float, default= 10.0)
+    parser.add_argument("--beta_val", type = float, default= 0.05)
+
 
 
     # System Settings
@@ -88,7 +92,7 @@ small_template_name = ''
 
 # Load model and template
 if args.model_name == "vicuna":
-    model_name = "lmsys/vicuna-33b-v1.3"
+    model_name = "lmsys/vicuna-7b-v1.5"
     small_model_name = "lmsys/vicuna-7b-v1.5"
     template_name = 'vicuna'
 elif args.model_name == "llama":
@@ -405,7 +409,7 @@ for prompt in tqdm(attack_prompts):
             #     safe_prefix = safe_prefix)
             # safe_inputs = safe_input_manager.get_inputs()
             # outputs, output_length = safe_decoder.secdecoding(inputs, safe_inputs, gen_config=gen_config)
-            outputs, output_length = safe_decoder.secdecoding_lora(inputs, gen_config=gen_config, small_inputs = small_inputs,MMLU=MMLU)
+            outputs, output_length = safe_decoder.secdecoding_lora(inputs, gen_config=gen_config, small_inputs = small_inputs,MMLU=MMLU,alpha_base_val=args.alpha_base_val, gamma_val=args.gamma_val, beta_val=args.beta_val)
             all_length += output_length
 
         elif args.defender == "PAT":
@@ -631,7 +635,7 @@ for prompt in tqdm(attack_prompts):
 
 
         elif args.defender == "Case1":
-            prefix = 'I'
+            prefix = "As"
             input_manager = PromptManager(tokenizer=tokenizer, 
                 conv_template=conv_template, 
                 instruction=user_prompt,

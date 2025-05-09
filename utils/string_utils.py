@@ -58,7 +58,7 @@ def pad_and_merge(encoded_dicts, pad_token_id=0):
 
 
 class PromptManager:
-    def __init__(self, *, tokenizer, conv_template, instruction, verbose=True, whitebox_attacker=False, return_token_type_ids = True, ICD=False, safe_prefix = None):
+    def __init__(self, *, tokenizer, conv_template, instruction, verbose=True, whitebox_attacker=False, return_token_type_ids = True, ICD=False, safe_prefix = None, user_prefix = None):
 
         self.tokenizer = tokenizer
         self.conv_template = copy.deepcopy(conv_template)
@@ -68,6 +68,7 @@ class PromptManager:
         self.return_token_type_ids = return_token_type_ids
         self.ICD = ICD
         self.safe_prefix = safe_prefix
+        self.user_prefix = user_prefix
 
         self.conv_template.messages = []
     
@@ -94,6 +95,8 @@ class PromptManager:
             prompt += ' '
 
         # return self.instruction
+        if self.user_prefix:
+            prompt+=self.user_prefix
         return prompt
     
 
