@@ -58,7 +58,7 @@ def get_args():
     parser.add_argument("--do_sample", type=bool, default=False)
     parser.add_argument("--top_p", type=float, default=None)
     parser.add_argument("--multi_processing", type=int, default=20)
-    parser.add_argument("--GPT_API", type=str, default=None)
+    parser.add_argument("--GPT_API", type=str, default='sk-31a5fa66751b440780587e12b1768ee5')
     # "https://api.openai.com/v1"
     parser.add_argument("--base_url", type=str, default="https://dashscope.aliyuncs.com/compatible-mode/v1")
     parser.add_argument("--API_model_name", type=str, default="deepseek-v3")
