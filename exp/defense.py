@@ -590,7 +590,7 @@ for prompt in tqdm(attack_prompts):
                 all_inputs.append(inputs)
 
             all_outputs = []
-            batch_size = 64
+            batch_size = 8
             for i in range(args.num_copies // batch_size + 1):
 
                 # Get the current batch of inputs
@@ -626,6 +626,20 @@ for prompt in tqdm(attack_prompts):
             outputs = random.choice(majority_outputs)
             logging.info(f"Generated sequence: {outputs}")
             output_length = len(tokenizer.encode(outputs))
+
+            all_length += output_length
+
+
+        elif args.defender == "Case1":
+            prefix = 'I'
+            input_manager = PromptManager(tokenizer=tokenizer, 
+                conv_template=conv_template, 
+                instruction=user_prompt,
+                whitebox_attacker=whitebox_attacker,
+                user_prefix = prefix)
+            inputs = input_manager.get_inputs()
+            outputs, output_length = safe_decoder.generate_baseline(inputs, gen_config=gen_config,MMLU=MMLU)
+            outputs = prefix + outputs
 
             all_length += output_length
                 
