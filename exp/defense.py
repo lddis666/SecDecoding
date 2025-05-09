@@ -349,7 +349,7 @@ for prompt in tqdm(attack_prompts):
     else:
         user_prompt = prompt["prompt"]
 
-    if args.attacker == "MMLU" or "TruthfulQA":
+    if args.attacker == "MMLU" or args.attacker =="TruthfulQA":
         answer = prompt["answer"]
 
     logging.info(f"User Prompt: \"{user_prompt}\"")
@@ -663,7 +663,7 @@ for prompt in tqdm(attack_prompts):
             "time_cost": time_end-time_start,
             "datasplit": "just_eval"
         }
-    elif args.attacker == "MMLU" or "TruthfulQA":
+    elif args.attacker == "MMLU" or args.attacker == "TruthfulQA":
         output_formatted = {
             # "id": prompt["id"],
             # "goal": prompt["goal"],
