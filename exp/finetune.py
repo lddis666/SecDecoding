@@ -90,7 +90,14 @@ if args.safe_decoding:
         model_name = "Qwen/Qwen2-72B-Instruct"
         
     elif args.model_name == "llama2":
-        model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        model_name = "meta-llama/Llama-2-7b-chat-hf"
+
+    elif args.model_name == "qwen_case2":
+        model_name = "Qwen/Qwen2-7B-Instruct"
+    elif args.model_name == "llama_case":
+        model_name = "meta-llama/Llama-2-7b-chat-hf"
+    elif args.model_name == "vicuna_case":
+        model_name = "lmsys/vicuna-7b-v1.5"
     else:
         raise ValueError("Invalid model name.")
 

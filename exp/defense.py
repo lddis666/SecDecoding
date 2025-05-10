@@ -154,6 +154,19 @@ elif args.model_name == "qwen2":
     model_name = "Qwen/Qwen2-72B-Instruct"
     small_model_name = "Qwen/Qwen2-1.5B-Instruct"
     template_name = 'qwen-7b-chat'
+
+
+elif args.model_name == "qwen_case":
+    model_name = "Qwen/Qwen2-7B-Instruct"
+    template_name = 'qwen-7b-chat'
+
+elif args.model_name == "llama_case":
+    model_name = "meta-llama/Llama-2-7b-chat-hf"
+    template_name = 'llama-2'
+
+elif args.model_name == "vicuna_case":
+    model_name = "lmsys/vicuna-7b-v1.5"
+    template_name = 'vicuna'
 else:
     raise ValueError("Invalid model name.")
 
@@ -195,6 +208,12 @@ elif args.defender == 'SafeDecoding':
     model = PeftModel.from_pretrained(model, "../lora_modules/"+args.model_name+'_safedecoding', adapter_name="expert")
     adapter_names = ['__base__', 'expert']
 
+
+if 'case' in args.model_name:
+    model = PeftModel.from_pretrained(model, "../lora_modules/"+args.model_name, adapter_name="expert")
+    adapter_names = ['__base__', 'expert']
+    all_prob = []
+    all_similarity = []
 
 # Initialize defenders
 # Load PPL Calculator
@@ -255,6 +274,9 @@ elif args.attacker == "ICA":
 
 elif args.attacker == "DAN":
     attack_prompts = json.load(open(f'../datasets/DAN.json', 'r', encoding='utf-8'))
+
+elif args.attacker == "DAN_Case":
+    attack_prompts = json.load(open(f'../datasets/{args.model_name}.json', 'r', encoding='utf-8'))
 
 
 elif args.attacker == "MMLU":
@@ -647,7 +669,27 @@ for prompt in tqdm(attack_prompts):
             outputs = prefix + outputs
 
             all_length += output_length
+
+        elif args.defender == "Case2":
+            input_manager = PromptManager(tokenizer=tokenizer, 
+                conv_template=conv_template, 
+                instruction=user_prompt,
+                whitebox_attacker=whitebox_attacker)
+            inputs = input_manager.get_inputs()
+            outputs, output_length, safety_prob = safe_decoder.generate_case(inputs, gen_config=gen_config,MMLU=MMLU)
+            all_prob+=safety_prob
+            all_length += output_length
                 
+        elif args.defender == "Case3":
+            input_manager = PromptManager(tokenizer=tokenizer, 
+                conv_template=conv_template, 
+                instruction=user_prompt,
+                whitebox_attacker=whitebox_attacker)
+            inputs = input_manager.get_inputs()
+            outputs, output_length, similarity = safe_decoder.generate_case1(inputs, gen_config=gen_config,MMLU=MMLU)
+            all_similarity.append(similarity)
+
+            all_length += output_length
             
         else:
             raise ValueError("Invalid defender name.")
@@ -730,6 +772,7 @@ if args.eval_mode:
         results = output_json['data']
         # goals = [result['goal'] for result in results]
         # instructions = [result['instruction'] for result in results]
+        instructions = [result['instruction'] for result in results]
         responses = [result['output'] for result in results]
 
         # if not args.disable_GPT_judge:
@@ -750,7 +793,7 @@ if args.eval_mode:
             output_formatted = {
                 "id": i,
                 # "goal": goals[i],
-                # "instruction": instructions[i],
+                "instruction": instructions[i],
                 "output": responses[i],
                 "dic_score": scores_dict[i],
             #     "GPT_score": scores_gpt[i] if not args.disable_GPT_judge else None,
@@ -798,6 +841,7 @@ if args.eval_mode:
 
         responses = [result['output'] for result in output_json]
         answers = [result['answer'] for result in output_json]
+        instructions = [result['instruction'] for result in output_json]
 
 
         safe_eval_results = []
@@ -806,7 +850,7 @@ if args.eval_mode:
             output_formatted = {
                 "id": i,
                 # "goal": goals[i],
-                # "instruction": instructions[i],
+                "instruction": instructions[i],
                 "output": responses[i],
                 "answer": answers[i],
                 "dic_score": True if responses[i] == answers[i] else False
@@ -827,3 +871,28 @@ if args.eval_mode:
 
         logging.info(f'Scores: {(defense_success_count / len(safe_eval_results))*100:.2f}')
     logging.info(f'token per second: {sum(time_per_second_list)/len(time_per_second_list)}')
+
+    def column_means(data):
+        """
+        计算嵌套列表每一列的均值（按位置对齐，不足的部分不参与均值计算）。
+
+        :param data: List[List[Number]]，嵌套的列表，子列表长度可以不同
+        :return: List[float]，每列对应均值
+        """
+        if not data:
+            return []
+        max_len = max(len(sublist) for sublist in data)
+        means = []
+        for i in range(max_len):
+            column = [sublist[i] for sublist in data if len(sublist) > i]
+            means.append(sum(column) / len(column))
+        return means
+    if 'case' in args.model_name:
+
+        if all_prob:
+            logging.info(f'prob{sum(all_prob)/len(all_prob)}')
+
+        if all_similarity:
+            logging.info(f'{column_means(all_similarity)}')
+        
+        

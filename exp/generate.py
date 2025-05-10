@@ -19,7 +19,7 @@ def get_args():
 
 args = get_args()
 
-detection_model = GPT('deepseek-v3',api = 'sk-31a5fa66751b440780587e12b1768ee5')
+detection_model = GPT('deepseek-v3',api = 'sk-31a5fa66751b440780587e12b1768ee5',base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
 
 
 if args.model_name == "llama":
@@ -35,7 +35,7 @@ if args.model_name == "llama":
     # small_template_name = 'qwen-7b-chat'
 
 elif args.model_name == "qwen":
-    model_name = "Qwen/Qwen2-7B-Instruct"
+    model_name = "Qwen/Qwen2-1.5B-Instruct"
     small_model_name = "Qwen/Qwen2-1.5B-Instruct"
     template_name = 'qwen-7b-chat'
     small_template_name = 'qwen-7b-chat'
@@ -81,7 +81,7 @@ else:
 
 
 if args.use_safe_decoding_dataset:
-    with open('../datasets/seed_reject.json', 'r', encoding='utf-8') as file:
+    with open('../datasets/safe_decoding.json', 'r', encoding='utf-8') as file:
         seed_reject = json.load(file)
 else:
     with open('../datasets/train_72.json', 'r', encoding='utf-8') as file:

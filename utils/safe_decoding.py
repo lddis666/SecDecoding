@@ -651,7 +651,7 @@ class SafeDecoding:
         
         return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence)
 
-
+    @torch.no_grad()
     def generate_batch(self, inputs,  gen_config=None):
         batch_inputs = self.tokenizer(
             inputs, 
@@ -689,6 +689,151 @@ class SafeDecoding:
         ]
 
         return batch_outputs
+
+
+
+    @torch.no_grad()
+    def generate_case(self, inputs,  gen_config=None, MMLU = None):
+        if gen_config is None:
+            gen_config = self.model.generation_config
+
+
+        safety_words = ["I", "apologize", "apologise", "cannot", "can't", "illegal", "unethical",
+            "fulfiil", "AI", "Sorry", "sorry", "am", "'m", "'t", "'d", "'s", "As", "an",
+            "assistant", "Assistant", "unable", "able", "allowed",  "not",
+            "do", "don't", "must", "Sure", "sure", "can", "provide",  "but", "assist", "help", "support",
+            "complete", ",", "'", "understand", "your", "My", "with", "harm", "harmful",
+            "purpose", "positive", "apologies", "legal", "engage", "prefer", "recommend",
+                        "I'm sorry", 
+                        "Sorry",
+                        "sorry",
+                        "I am sorry",
+                        "I apologize",
+                        "As an",
+                        "As a language model",
+                        "As an Assistant",
+                        "I cannot",
+                        "cannot fulfill",
+                        "can’t assist with",
+                        "can't assist with",
+                        "can’t do that",
+                        "can't do that",
+                        "can't provide",
+                        "can’t provide",
+                        "can't fulfill",
+                        "can’t fulfill",
+                        "can't help with",
+                        "can’t help with",
+                        "can’t support",
+                        "can't support",
+                        "I'm unable to",
+                        "I am unable to",
+                        "I am not allowed to",
+                        "I am not able to",
+                        "I am not authorized",
+                        "I can't",
+                        "I can’t",
+                        "I can\'t"]
+        safety_tokens = []
+        for word in safety_words:
+            # if self.tokenizer.convert_tokens_to_ids(word):
+            #     safety_tokens.append(self.tokenizer.convert_tokens_to_ids(word))
+            # else:
+            safety_tokens+=self.tokenizer.encode(word, add_special_tokens=False)
+        safety_tokens = list(set(safety_tokens))
+        inputs_duplicated = {k:v.repeat(2,1).cuda(self.model.device) for k,v in inputs.items()}
+
+
+        outputs = self.model.generate(**inputs_duplicated,
+                                adapter_names=self.adapter_names,
+                                generation_config=gen_config,
+                                pad_token_id=self.tokenizer.pad_token_id,
+                                eos_token_id = self.tokenizer.eos_token_id,
+                                return_dict_in_generate=True,
+                                output_scores=True,)
+        
+
+
+        prob_list = []
+        for i, step in enumerate(outputs.scores):
+            prob_list.append(torch.softmax(step[0],dim=0)[safety_tokens].sum().item())
+
+            if i>=5:
+                break
+
+
+# torch.where((p1 >= threshold) | (p2 >= threshold))[0].cpu().tolist()
+
+        generated_sequence = outputs.sequences[1][inputs["input_ids"].shape[1]:]
+        logging.info(f"Generated sequence: {self.tokenizer.decode(generated_sequence)}")
+
+        return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence), prob_list, 
+
+
+
+
+
+    @torch.no_grad()
+    def generate_case1(self, inputs,  gen_config=None, MMLU = None):
+        if gen_config is None:
+            gen_config = self.model.generation_config
+
+        max_token_len = gen_config.max_new_tokens
+
+        gen_config.max_new_tokens = 1  # We generate one token at a time
+        gen_config.do_sample = False  # We use greedy decoding
+
+        generated_sequence = []
+
+        inputs = {k:v.cuda(self.model.device) for k,v in inputs.items()}
+        
+
+        step = 1  
+        similarity_list = []
+        while step <= max_token_len:
+            # Generate the next token
+            # duplicate inputs for two original and expert model
+            
+            inputs_duplicated = {k:v.repeat(2,1).cuda(self.model.device) for k,v in inputs.items()}
+            outputs = self.model.generate(**inputs_duplicated,
+                                    adapter_names=self.adapter_names,
+                                    generation_config=gen_config,
+                                    # pad_token_id=self.tokenizer.pad_token_id,
+                                    return_dict_in_generate=True,
+                                    output_scores=True,)
+            
+            base_scores = outputs['scores'][0][0]
+            expert_scores = outputs['scores'][0][1]
+            base_prob = torch.softmax(base_scores,dim=-1)
+            expert_prob = torch.softmax(expert_scores,dim=-1)
+            wasserstein_dist = torch.sum(torch.abs(base_prob - expert_prob)).item()
+            similarity_list.append(wasserstein_dist)
+
+            selected_token_id = expert_scores.argmax(dim=-1)
+
+
+            if selected_token_id.item() == self.tokenizer.eos_token_id:
+                logging.info("Early stop triggered.")
+                break
+
+            generated_sequence.append(selected_token_id.item())
+
+            inputs['input_ids'] = torch.cat([inputs['input_ids'], selected_token_id.unsqueeze(0).unsqueeze(0).to(inputs['input_ids'].device)], dim=1)
+            inputs['attention_mask'] = torch.cat([inputs['attention_mask'], torch.tensor([[1]], device=self.model.device)], dim=1)
+
+            step += 1
+           
+            
+        print(similarity_list)
+
+# torch.where((p1 >= threshold) | (p2 >= threshold))[0].cpu().tolist()
+
+        logging.info(f"Generated sequence: {self.tokenizer.decode(generated_sequence)}")
+
+        return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence),  similarity_list
+
+
+
 
 class Dynamic_alpha():
     def __init__(self, alpha_base_val = 10.0, gamma_val = 10.0, beta_val = 0.05, tokenizer = None):
