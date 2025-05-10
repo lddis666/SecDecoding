@@ -37,7 +37,7 @@ def get_args():
     parser.add_argument("--alpha", type=float, default=3)
     parser.add_argument("--first_m", type=int, default=4)
     parser.add_argument("--top_k", type=int, default=10)
-    parser.add_argument("--num_common_tokens", type=int, default=5)
+    parser.add_argument("--num_common_tokens", type=int, default=15)
     parser.add_argument("--ppl_threshold", type=float, default=175.57, help="PPL threshold for PPL defense (Default: 175.56716547041594 from advbench-50)")
     parser.add_argument("--BPO_dropout_rate", type=float, default=0.2, help="BPE Dropout rate for Retokenization defense (Default: 0.2)")
     parser.add_argument("--paraphase_model", type=str, default="deepseek-v3")
@@ -253,6 +253,9 @@ elif args.attacker == "Just-Eval":
 elif args.attacker == "ICA":
     attack_prompts = json.load(open(f'../datasets/ICA.json', 'r', encoding='utf-8'))
 
+elif args.attacker == "DAN":
+    attack_prompts = json.load(open(f'../datasets/DAN.json', 'r', encoding='utf-8'))
+
 
 elif args.attacker == "MMLU":
     attack_prompts = json.load(open(f'../datasets/MMLU.json', 'r', encoding='utf-8'))
@@ -454,10 +457,8 @@ for prompt in tqdm(attack_prompts):
                     whitebox_attacker=whitebox_attacker)
                 inputs_paraphrase = input_manager_paraphrase.get_inputs()
                 outputs_paraphrase, output_length_paraphrase = safe_decoder.generate_baseline(inputs_paraphrase, gen_config=gen_config,MMLU=MMLU)
-            elif args.paraphase_model == "deepseek-v3":
-                outputs_paraphrase = paraphrase_model(input_prompt_paraphrase).choices[0].message.content
             else:
-                raise ValueError("Invalid paraphrase model name.")
+                outputs_paraphrase = paraphrase_model(input_prompt_paraphrase).choices[0].message.content
 
             logging.info(f"paraphrased Prompt: {outputs_paraphrase}")
 
@@ -635,7 +636,7 @@ for prompt in tqdm(attack_prompts):
 
 
         elif args.defender == "Case1":
-            prefix = "As"
+            prefix = "I am"
             input_manager = PromptManager(tokenizer=tokenizer, 
                 conv_template=conv_template, 
                 instruction=user_prompt,

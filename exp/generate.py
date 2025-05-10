@@ -19,7 +19,7 @@ def get_args():
 
 args = get_args()
 
-detection_model = GPT('deepseek-v3')
+detection_model = GPT('deepseek-v3',api = 'sk-31a5fa66751b440780587e12b1768ee5')
 
 
 if args.model_name == "llama":
