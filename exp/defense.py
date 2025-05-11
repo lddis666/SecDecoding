@@ -189,7 +189,7 @@ model, tokenizer = load_model_and_tokenizer(model_name,
 
 small_model = None
 adapter_names = None
-if args.defender == 'SecDecoding':  
+if args.defender in ['SecDecoding','Speculative_Greedy']:  
     small_model, small_tokenizer = load_model_and_tokenizer(small_model_name, 
                         FP16=args.FP16,
                         low_cpu_mem_usage=args.low_cpu_mem_usage,
@@ -201,16 +201,16 @@ if args.defender == 'SecDecoding':
         lora_name = "qwen"
     elif args.model_name == "llama3":
         lora_name = "llama"
-    small_model = PeftModel.from_pretrained(small_model, "../lora_modules/"+lora_name, adapter_name="expert")
+    small_model = PeftModel.from_pretrained(small_model, "../lora_modules/"+lora_name, adapter_name="expert", torch_dtype=torch.float16)
     adapter_names = ['__base__', 'expert']
 
 elif args.defender == 'SafeDecoding':  
-    model = PeftModel.from_pretrained(model, "../lora_modules/"+args.model_name+'_safedecoding', adapter_name="expert")
+    model = PeftModel.from_pretrained(model, "../lora_modules/"+args.model_name+'_safedecoding', adapter_name="expert",torch_dtype=torch.float16)
     adapter_names = ['__base__', 'expert']
 
 
 if 'case' in args.model_name:
-    model = PeftModel.from_pretrained(model, "../lora_modules/"+args.model_name, adapter_name="expert")
+    model = PeftModel.from_pretrained(model, "../lora_modules/"+args.model_name, adapter_name="expert",torch_dtype=torch.float16)
     adapter_names = ['__base__', 'expert']
     all_prob = []
     all_similarity = []
@@ -435,6 +435,27 @@ for prompt in tqdm(attack_prompts):
             # safe_inputs = safe_input_manager.get_inputs()
             # outputs, output_length = safe_decoder.secdecoding(inputs, safe_inputs, gen_config=gen_config)
             outputs, output_length = safe_decoder.secdecoding_lora(inputs, gen_config=gen_config, small_inputs = small_inputs,MMLU=MMLU,alpha_base_val=args.alpha_base_val, gamma_val=args.gamma_val, beta_val=args.beta_val)
+            all_length += output_length
+
+
+
+        elif args.defender == 'Speculative_Greedy':
+
+            input_manager = PromptManager(tokenizer=tokenizer, 
+                conv_template=conv_template, 
+                instruction=user_prompt,
+                whitebox_attacker=whitebox_attacker)
+            inputs = input_manager.get_inputs()
+
+            if small_conv_template:
+                input_manager = PromptManager(tokenizer=tokenizer, 
+                    conv_template=small_conv_template, 
+                    instruction=user_prompt,
+                    whitebox_attacker=whitebox_attacker)
+                small_inputs = input_manager.get_inputs()
+            else: small_inputs = None
+
+            outputs, output_length = safe_decoder.secdecoding_speculative_greedy(inputs, gen_config=gen_config, small_inputs = small_inputs,alpha_base_val=args.alpha_base_val, gamma_val=args.gamma_val, beta_val=args.beta_val)
             all_length += output_length
 
         elif args.defender == "PAT":
