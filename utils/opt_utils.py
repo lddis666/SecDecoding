@@ -11,35 +11,43 @@ from fastchat.model import get_conversation_template
 
 
 def load_model_and_tokenizer(model_path, FP16 = True, tokenizer_path=None, device=None, **kwargs):
-    if FP16:
-        model = AutoModelForCausalLM.from_pretrained(
-                model_path,
-                torch_dtype=torch.float16,
-                trust_remote_code=True,
-                device_map = 'auto',
-                # use_flash_attn = False,
-                # **kwargs
-            ).eval()
+    if model_path == "gpt3.5":
+        model = None
     else:
-        model = AutoModelForCausalLM.from_pretrained(
-                model_path,
-                trust_remote_code=True,
-                device_map = 'auto',
-                # use_flash_attn = False,
-                **kwargs
-            ).eval()
+        if FP16:
+            model = AutoModelForCausalLM.from_pretrained(
+                    model_path,
+                    torch_dtype=torch.float16,
+                    trust_remote_code=True,
+                    device_map = 'auto',
+                    # use_flash_attn = False,
+                    # **kwargs
+                ).eval()
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                    model_path,
+                    trust_remote_code=True,
+                    device_map = 'auto',
+                    # use_flash_attn = False,
+                    **kwargs
+                ).eval()
+
+        model.requires_grad_(False)
     # if device:
     #      model.to('cuda')
 
     if model_path == "timdettmers/guanaco-13b-merged":
         tokenizer_path = "huggyllama/llama-7b"
 
+    if model_path == "gpt3.5":
+        tokenizer_path = "Qwen/Qwen2-7B-Instruct"
+
+
     tokenizer_path = model_path if tokenizer_path is None else tokenizer_path
     
     tokenizer = AutoTokenizer.from_pretrained(
         tokenizer_path,
         trust_remote_code=True,
-        use_fast=False
     )
     
     if 'oasst-sft-6-llama-30b' in tokenizer_path:
@@ -64,7 +72,6 @@ def load_model_and_tokenizer(model_path, FP16 = True, tokenizer_path=None, devic
     if not tokenizer.pad_token:
         tokenizer.pad_token = tokenizer.eos_token
 
-    model.requires_grad_(False)
     
     return model, tokenizer
 

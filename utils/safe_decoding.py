@@ -3,7 +3,11 @@ import numpy as np
 import copy
 import logging
 from peft import PeftModel, PeftModelForCausalLM
+from transformers import AutoModelForCausalLM
 from utils.string_utils import pad_and_merge
+from math import exp
+
+from utils.model import GPT
 
 from typing import Tuple, Set
 
@@ -233,23 +237,24 @@ class SafeDecoding:
 
     @torch.no_grad()
     def secdecoding_lora(self, inputs, gen_config=None, small_inputs = None, MMLU = None, alpha_base_val=10.0, gamma_val=10.0, beta_val=0.05):
-            if gen_config is None:
-                gen_config = self.model.generation_config
+        if gen_config is None:
+            gen_config = self.model.generation_config
 
-            max_token_len = gen_config.max_new_tokens
-            # max_token_len = 100
-            do_sample = gen_config.do_sample
+        max_token_len = gen_config.max_new_tokens
+        # max_token_len = 100
+        do_sample = gen_config.do_sample
 
-            # Override the generation config for our decoding
-            gen_config.max_new_tokens = 1  # We generate one token at a time
-            gen_config.do_sample = False  # We use greedy decoding
+        # Override the generation config for our decoding
+        gen_config.max_new_tokens = 1  # We generate one token at a time
+        gen_config.do_sample = False  # We use greedy decoding
 
-            generated_sequence = []
-            if self.verbose:
-                logging.info(f"Generation config: {gen_config}")
-            if not small_inputs:
-                small_inputs = copy.deepcopy(inputs)
+        generated_sequence = []
+        if self.verbose:
+            logging.info(f"Generation config: {gen_config}")
+        if not small_inputs:
+            small_inputs = copy.deepcopy(inputs)
 
+        if not isinstance(self.model, GPT):
             inputs = {k:v.cuda(self.model.device) for k,v in inputs.items()}
             small_inputs = {k:v.cuda(self.model.device) for k,v in small_inputs.items()}
             input_len = inputs['input_ids'].shape[1]
@@ -272,7 +277,7 @@ class SafeDecoding:
                 small_outputs = self.small_model.generate(**inputs_duplicated,
                                         adapter_names=self.adapter_names,
                                         generation_config=gen_config,
-                                        # pad_token_id=self.tokenizer.pad_token_id,
+                                        pad_token_id=self.tokenizer.pad_token_id,
                                         return_dict_in_generate=True,
                                         output_scores=True,)
                 
@@ -280,6 +285,7 @@ class SafeDecoding:
                 expert_scores = small_outputs['scores'][0][1]
                 base_prob = torch.softmax(base_scores,dim=-1)
                 expert_prob = torch.softmax(expert_scores,dim=-1)
+
 
                 k = self.top_k
                 topk_prob_base, topk_indices_base = base_prob.topk(k) 
@@ -365,7 +371,7 @@ class SafeDecoding:
                     logging.info("Early stop triggered.")
                     break
 
- 
+
                 inputs['input_ids'] = torch.cat([inputs['input_ids'], selected_token_id.unsqueeze(0).to(inputs['input_ids'].device)], dim=1)
                 inputs['attention_mask'] = torch.cat([inputs['attention_mask'], torch.tensor([[1]], device=self.model.device)], dim=1)
 
@@ -377,13 +383,7 @@ class SafeDecoding:
                 if alpha < 1e-6:
                     break
 
-                    
-                # # Free up memory
-                # del output_base, output_expert
 
-
-            # Use the normal model to generate the rest of the tokens
-            # Early stop if the last token is eos
 
 
             if inputs['input_ids'][0][-1].item() == self.tokenizer.eos_token_id:
@@ -405,7 +405,382 @@ class SafeDecoding:
             logging.info(f"Generated sequence: {self.tokenizer.decode(generated_sequence)}")
 
             return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence)
+
+        else:
+                
+            generated = ''
+            inputs = self.tokenizer.decode(inputs['input_ids'][0], skip_special_tokens=False)
+
+            
+
+            small_inputs = {k:v.cuda(self.small_model.device) for k,v in small_inputs.items()}
+            input_len = small_inputs['input_ids'].shape[1]
+
+            step = 1  
+            alpha_manager = Dynamic_alpha(alpha_base_val=alpha_base_val, gamma_val=gamma_val, beta_val=beta_val, tokenizer = self.tokenizer)
+
+
+
+
+            while step <= max_token_len:
+
+                
+                inputs_duplicated = {k:v.repeat(2,1).cuda(self.small_model.device) for k,v in small_inputs.items()}
+                small_outputs = self.small_model.generate(**inputs_duplicated,
+                                        adapter_names=self.adapter_names,
+                                        generation_config=gen_config,
+                                        pad_token_id=self.tokenizer.pad_token_id,
+                                        return_dict_in_generate=True,
+                                        output_scores=True,)
+                
+                base_scores = small_outputs['scores'][0][0]
+                expert_scores = small_outputs['scores'][0][1]
+                base_prob = torch.softmax(base_scores,dim=-1)
+                expert_prob = torch.softmax(expert_scores,dim=-1)
+
+
+                k = self.top_k
+                topk_prob_base, topk_indices_base = base_prob.topk(k) 
+                topk_prob_expert, topk_indices_expert = expert_prob.topk(k) 
+
+
+
+                outputs, tokens, logprobs = self.model.generate(inputs+generated, 1)
+
+                if not outputs:
+                    break
+
+                
+
+
+                # print("--- Running Scheme A (Additive with TVD) ---")
+
+                alpha = alpha_manager.get_alpha(
+                    p1=expert_prob,
+                    p2=base_prob,
+                    k=step,
+                    threshold=0.05,
+                    verbose=self.verbose
+                ).item()
+
+                final_prob = alpha*(expert_prob - base_prob)
+                for token, prob in logprobs[0].items():
+                    token_list = self.tokenizer.encode(token, add_special_tokens = False)
+                    final_prob[token_list] += exp(prob)
+                    
+
+                topk_prob_final, topk_indices_final = final_prob.topk(k) 
+
+
+                if self.verbose:
+                    logging.info("\n-----------------------------------------------")
+                    logging.info(f"Generation Step {step}")
+                    logging.info("Original Model")
+                    logging.info("|No. | Token ID | Token    | Prob    |")
+                    logging.info("|----|----------|---------|---------|")
+                    for idx, (prob, token_id) in enumerate(zip(topk_prob_base, topk_indices_base)):
+                        token = self.tokenizer.decode(token_id.item())
+                        logging.info(f"{idx+1:4d} | {token_id:8d} | {token:7s}  | {prob:.2%} |")
+
+
+                    logging.info("Expert Model")
+                    logging.info("|No. | Token ID | Token   | Prob    |")
+                    logging.info("|----|----------|---------|---------|")
+                    for idx, (prob, token_id) in enumerate(zip(topk_prob_expert, topk_indices_expert)):
+                        token = self.tokenizer.decode(token_id.item())
+                        logging.info(f"{idx+1:4d} | {token_id:8d} | {token:7s} | {prob:.2%} |")
+
+                    logging.info("Big Model")
+                    logging.info("|No. | Token   | Prob    |")
+                    logging.info("|----|---------|---------|")
+                    for idx, (token,log_prob) in enumerate(logprobs[0].items()):
+                        logging.info(f"{idx+1:4d} |  {token:7s} | {exp(log_prob):.2%} |")
+
+
+                    logging.info(f"alpha: {alpha}")
+                    logging.info("Final Model")
+                    logging.info("|No. | Token ID | Token   | Prob    |")
+                    logging.info("|----|----------|---------|---------|")
+                    for idx, (prob, token_id) in enumerate(zip(topk_prob_final, topk_indices_final)):
+                        token = self.tokenizer.decode(token_id.item())
+                        logging.info(f"{idx+1:4d} | {token_id:8d} | {token:7s} | {prob:.2%} |")
+
+
+                if MMLU:
+                    if MMLU == 1:
+                        letters = ["A","B","C","D"]
+                    else:
+                        letters = ["A","B","C","D","E","F","G","H","I","J","K","L","M"]
+                    letter_token_ids = [self.tokenizer.encode(letter,add_special_tokens=False)[0] for letter in letters]
+                    selected_probs = final_prob[letter_token_ids]
+                    max_idx_in_letters = torch.argmax(selected_probs).item()
+                    selected_token_id = torch.tensor(letter_token_ids[max_idx_in_letters]).unsqueeze(0)
+                else:
+                    selected_token_id = topk_indices_final[0].unsqueeze(0)
+                generated_sequence.append(selected_token_id.item())
+                generated += self.tokenizer.decode(selected_token_id.item())
+
+                if selected_token_id.item() == self.tokenizer.eos_token_id:
+                    logging.info("Early stop triggered.")
+                    break
+
+
+                small_inputs['input_ids'] = torch.cat([small_inputs['input_ids'], selected_token_id.unsqueeze(0).to(small_inputs['input_ids'].device)], dim=1)
+                small_inputs['attention_mask'] = torch.cat([small_inputs['attention_mask'], torch.tensor([[1]], device=self.small_model.device)], dim=1)
+
+                step += 1
+
+                if alpha < 1e-6:
+                    break
+
+
+
+
+            if small_inputs['input_ids'][0][-1].item() == self.tokenizer.eos_token_id:
+                logging.info("Early stop triggered.")
+            else:
+                remaining_steps = max_token_len - len(generated_sequence)
+                if remaining_steps>0:
+                    outputs, _, _ = self.model.generate(inputs+generated, remaining_steps)
+                    generated += outputs
+
+            # logging.info generated sequence
+            logging.info(f"Generated sequence: {generated}")
+
+            return generated, len(generated)
     
+
+    @torch.no_grad()
+    def secdecoding_speculative_greedy(self, inputs, gen_config=None, small_inputs = None, alpha_base_val=10.0, gamma_val=10.0, beta_val=0.05,gamma=5):
+
+
+        eos_token_id = self.tokenizer.eos_token_id
+        if not small_inputs:
+            small_inputs = copy.deepcopy(inputs)
+
+        small_ids = small_inputs['input_ids'].to(self.small_model.device)  
+        large_ids = inputs['input_ids'].to(self.model.device)                  # 当前已生成的全部token
+
+
+        small_len = small_ids.shape[1]
+        large_len = large_ids.shape[1]
+
+
+        
+        generated = []                                  # 新生成部分（不包括输入）
+        main_kv_cache = None 
+        base_kv_cache = None 
+        expert_kv_cache = None                          
+        max_new_tokens = gen_config.max_new_tokens
+        alpha_manager = Dynamic_alpha(alpha_base_val=alpha_base_val, gamma_val=gamma_val, beta_val=beta_val, tokenizer = self.tokenizer)
+        draft_input = small_ids
+        additional_token = None
+        use_SecDecoding = True
+
+        for _ in range(max_new_tokens):
+            # Step1: 草稿模型投机gamma步（遇eos提前停）
+            draft_ids = []
+            draft_logits = []
+
+
+            for _ in range(gamma):
+                draft_out = self.small_model(
+                    draft_input, past_key_values=expert_kv_cache, use_cache=True, adapter_names = ['expert']
+                )
+
+
+                next_logits = draft_out.logits[:, -1, :]   # 取最后一步
+
+
+
+                next_token = next_logits.argmax(-1, keepdim=True)
+                draft_logits.append(next_logits)
+                draft_ids.append(next_token)
+                if next_token.item() == eos_token_id:
+                    break
+                expert_kv_cache = draft_out.past_key_values
+                draft_input = next_token
+                if self.verbose:
+                    logging.info(f'猜: {self.tokenizer.decode(next_token[0])}')
+
+
+            # 2. 构造主模型的批量并行验证输入
+            batch_draft = torch.cat(draft_ids, dim=-1)   # (1, N)
+            if not additional_token:
+                verify_input_large = torch.cat([large_ids, batch_draft.to(large_ids.device)], dim=-1) 
+                verify_input_small = torch.cat([small_ids, batch_draft.to(small_ids.device)], dim=-1) 
+            else:
+                verify_input_large = torch.cat([additional_token, batch_draft.to(additional_token.device)], dim=-1) 
+                verify_input_small = torch.cat([additional_token, batch_draft.to(additional_token.device)], dim=-1) 
+
+
+            main_out = self.model(
+                verify_input_large,
+                past_key_values=main_kv_cache,
+                use_cache=True,
+            )  
+            if use_SecDecoding:
+                base_out = self.small_model(
+                    verify_input_small, past_key_values=base_kv_cache, use_cache=True, adapter_names = ['__base__']
+                )
+
+            # 主模型只需要比较 len(draft_ids) 步的输出
+            main_logits = main_out.logits[:, -len(draft_ids)-1:, :][0] # (N, vocab)
+            main_kv_cache = main_out.past_key_values
+            if use_SecDecoding:
+                base_logits = base_out.logits[:, -len(draft_ids)-1:, :][0]  # (N, vocab)
+                base_kv_cache = base_out.past_key_values
+
+            accept = True
+            for _, token in enumerate(draft_ids):
+
+                if use_SecDecoding:
+                    base_prob = torch.softmax(base_logits[_],dim=-1)
+                    expert_prob = torch.softmax(draft_logits[_][0],dim=-1)
+
+                    alpha = alpha_manager.get_alpha(
+                        p1=expert_prob,
+                        p2=base_prob,
+                        k=len(generated)+1,
+                        threshold=0.05,
+                        verbose=self.verbose
+                    ).item()
+
+
+                    final_prob =  torch.softmax(main_logits[_][:len(expert_prob)],dim=-1).to(expert_prob.device)  + alpha*(expert_prob - base_prob)      
+                    pred_token = final_prob.argmax(-1)
+                else:
+                    pred_token =  torch.softmax(main_logits[_],dim=-1).argmax(-1)
+
+                if alpha < 1e-6:
+                    use_SecDecoding = False
+
+
+                if self.verbose:
+                    logging.info(f'正确的: {self.tokenizer.decode(pred_token)}')
+
+                # print(pred_token)
+                if pred_token.item() == token.item():
+                    # 验证通过，纳入生成
+                    if self.verbose:
+                        logging.info('通过')
+                    generated.append(token.item())
+                    if token.item() == eos_token_id:
+                        # draft与main_model都认为结束，直接终止
+
+                        logging.info(self.tokenizer.decode(generated, skip_special_tokens=True))
+                        return self.tokenizer.decode(
+                            generated, skip_special_tokens=True
+                        ),len(generated)
+                    if len(generated) >= max_new_tokens:
+                        logging.info(self.tokenizer.decode(generated, skip_special_tokens=True))
+                        return self.tokenizer.decode(
+                            generated, skip_special_tokens=True
+                        ),len(generated)
+                else:
+                    if self.verbose:
+                        logging.info('失败')
+                    accept = False
+                    # 未通过，用主模型自己的预测token，并中断草稿
+
+                    if use_SecDecoding:
+                        base_kv_cache = rollback(base_kv_cache,len(generated)+small_len)
+                    main_kv_cache = rollback(main_kv_cache,len(generated)+large_len)
+                    expert_kv_cache = rollback(expert_kv_cache,len(generated)+small_len)
+
+                    additional_token = pred_token.unsqueeze(0).unsqueeze(0)
+                    draft_input = pred_token.unsqueeze(0).unsqueeze(0)
+                    generated.append(pred_token.item())
+                    if self.verbose:
+                        logging.info(f'修正：{self.tokenizer.decode(pred_token)}')
+                    if pred_token.item() == eos_token_id:
+                        logging.info(self.tokenizer.decode(generated, skip_special_tokens=True))
+                        return self.tokenizer.decode(
+                            generated, skip_special_tokens=True
+                        ),len(generated)
+                    break
+            if accept:
+                if self.verbose:
+                    logging.info('全猜对了')
+                additional_token = pred_token.unsqueeze(0).unsqueeze(0)
+                draft_input = pred_token.unsqueeze(0).unsqueeze(0)
+                if use_SecDecoding:
+                    base_kv_cache = rollback(base_kv_cache,len(generated)+small_len-1)
+                main_kv_cache = rollback(main_kv_cache,len(generated)+large_len-1)
+            if len(generated) >= max_new_tokens:
+                break
+           
+        logging.info(self.tokenizer.decode(generated, skip_special_tokens=True))
+        return self.tokenizer.decode(generated, skip_special_tokens=True),len(generated)
+
+            
+
+        #     # Step2: 主模型验证草稿。遇不一致或eos，立即终止
+        #     verify_input_large = large_ids
+        #     verify_input_small = small_ids
+
+
+        #     for _, token in enumerate(draft_ids):
+        #         with torch.no_grad():
+        #             main_out = self.model(
+        #                 verify_input_large, past_key_values=main_kv_cache, use_cache=True
+        #             )
+        #             base_out = self.small_model(
+        #                 verify_input_small, past_key_values=base_kv_cache, use_cache=True, adapter_names = ['__base__']
+        #             )
+
+        #             expert_prob = torch.softmax(draft_logits[_][0],dim=-1)
+        #             base_prob = torch.softmax(base_out.logits[0][-1],dim=-1)
+        #             alpha = alpha_manager.get_alpha(
+        #                 p1=expert_prob,
+        #                 p2=base_prob,
+        #                 k=len(generated)+1,
+        #                 threshold=0.05,
+        #                 verbose=self.verbose
+        #             ).item()
+
+        #             # print(main_out.logits[0][-1].max(dim=-1))
+
+
+        #             final_prob =  torch.softmax(main_out.logits[0][-1][:len(expert_prob)],dim=-1).to(expert_prob.device)  + alpha*(expert_prob - base_prob)
+                    
+                
+        #         pred_token = final_prob.argmax(-1)
+        #         # print(pred_token)
+        #         if pred_token.item() == token.item():
+        #             # 验证通过，纳入生成
+        #             generated.append(token.item())
+        #             small_ids = torch.cat([small_ids, token], dim=-1)
+        #             large_ids = torch.cat([large_ids, token], dim=-1)
+        #             main_kv_cache = main_out.past_key_values
+        #             verify_input_large = token
+        #             verify_input_small = token
+        #             if token.item() == eos_token_id:
+        #                 # draft与main_model都认为结束，直接终止
+        #                 return self.tokenizer.decode(
+        #                     generated, skip_special_tokens=True
+        #                 ),len(generated)
+        #             if len(generated) >= max_new_tokens:
+        #                 return self.tokenizer.decode(
+        #                     generated, skip_special_tokens=True
+        #                 ),len(generated)
+        #         else:
+        #             # 未通过，用主模型自己的预测token，并中断草稿
+        #             generated.append(pred_token.item())
+
+        #             small_ids = torch.cat([small_ids, pred_token.unsqueeze(0).unsqueeze(0)], dim=-1)
+        #             large_ids = torch.cat([large_ids, pred_token.unsqueeze(0).unsqueeze(0)], dim=-1)
+        #             main_kv_cache = main_out.past_key_values
+        #             if pred_token.item() == eos_token_id:
+        #                 return self.tokenizer.decode(
+        #                     generated, skip_special_tokens=True
+        #                 ),len(generated)
+        #             break
+        #     if len(generated) >= max_new_tokens:
+        #         break
+
+        # return self.tokenizer.decode(generated, skip_special_tokens=True),len(generated)
+
     @torch.no_grad()
     def secdecoding_prefix(self, inputs, safe_inputs, gen_config=None):
             if gen_config is None:
@@ -611,6 +986,17 @@ class SafeDecoding:
         # gen_config.do_sample = False 
         if self.verbose:
             logging.info(f"Generation config: {gen_config}")
+
+        if isinstance(self.model, GPT):
+            text = self.tokenizer.decode(inputs['input_ids'][0], skip_special_tokens=False)
+            print(text)
+            outputs, _ ,_ = self.model.generate(text,gen_config.max_new_tokens)
+            logging.info(f"Generated sequence: {outputs}")
+            return outputs, len(outputs)
+
+
+            
+
 
         inputs = {k:v.cuda(self.model.device) for k,v in inputs.items()}
 
@@ -976,3 +1362,109 @@ class Dynamic_alpha():
         # Step 3: Calculate dynamic alpha using TVD <<< CHANGE HERE
         alpha_k = self._calculate_dynamic_alpha(wasserstein_dist, k, verbose)
         return alpha_k
+
+
+
+# import torch
+
+# def speculative_greedy_decode(
+#     main_model,
+#     draft_model,
+#     tokenizer,
+#     input_ids,
+#     gamma=4,
+#     max_new_tokens=100,
+#     device="cuda"
+# ):
+#     """
+#     贪婪+投机解码（Speculative Greedy Decoding with KV cache and EOS check）
+#     - main_model: 主模型（带KV缓存解码）
+#     - draft_model: 草稿小模型（同主模型接口）
+#     - tokenizer: 大多数HF分词器
+#     - input_ids: shape=(1, seq_len)，编码过的输入
+#     - gamma: 每次投机的token数量
+#     - max_new_tokens: 最大生成token数量
+#     - device: 推理设备
+#     """
+
+#     eos_token_id = tokenizer.eos_token_id
+#     cur_ids = input_ids.to(device)                  # 当前已生成的全部token
+#     generated = []                                  # 新生成部分（不包括输入）
+#     main_kv_cache = None                            # KV缓存初始化
+
+#     for _ in range(max_new_tokens):
+#         # Step1: 草稿模型投机gamma步（遇eos提前停）
+#         draft_ids = []
+#         kv_cache = None
+#         draft_input = cur_ids
+#         for _ in range(gamma):
+#             with torch.no_grad():
+#                 draft_out = draft_model(
+#                     draft_input, past_key_values=kv_cache, use_cache=True
+#                 )
+#             next_logits = draft_out.logits[:, -1, :]   # 取最后一步
+#             next_token = next_logits.argmax(-1, keepdim=True)
+#             draft_ids.append(next_token)
+#             if next_token.item() == eos_token_id:
+#                 break
+#             kv_cache = draft_out.past_key_values
+#             draft_input = next_token
+
+#         # Step2: 主模型验证草稿。遇不一致或eos，立即终止
+#         verify_input = cur_ids
+#         for token in draft_ids:
+#             with torch.no_grad():
+#                 main_out = main_model(
+#                     verify_input, past_key_values=main_kv_cache, use_cache=True
+#                 )
+#             pred_token = main_out.logits[:, -1, :].argmax(-1, keepdim=True)
+#             if pred_token.item() == token.item():
+#                 # 验证通过，纳入生成
+#                 generated.append(token.item())
+#                 cur_ids = torch.cat([cur_ids, token], dim=-1)
+#                 main_kv_cache = main_out.past_key_values
+#                 verify_input = token
+#                 if token.item() == eos_token_id:
+#                     # draft与main_model都认为结束，直接终止
+#                     return tokenizer.decode(
+#                         generated, skip_special_tokens=True
+#                     )
+#                 if len(generated) >= max_new_tokens:
+#                     return tokenizer.decode(
+#                         generated, skip_special_tokens=True
+#                     )
+#             else:
+#                 # 未通过，用主模型自己的预测token，并中断草稿
+#                 generated.append(pred_token.item())
+#                 cur_ids = torch.cat([cur_ids, pred_token], dim=-1)
+#                 main_kv_cache = main_out.past_key_values
+#                 if pred_token.item() == eos_token_id:
+#                     return tokenizer.decode(
+#                         generated, skip_special_tokens=True
+#                     )
+#                 break
+#         if len(generated) >= max_new_tokens:
+#             break
+
+#     return tokenizer.decode(generated, skip_special_tokens=True)
+
+# # 用法示例
+# # input_text = "Once upon a time,"
+# # input_ids = tokenizer.encode(input_text, return_tensors="pt")
+# # result = speculative_greedy_decode(main_model, draft_model, tokenizer, input_ids, gamma=4, max_new_tokens=100, device="cuda")
+# # print(result)
+
+
+def rollback(past_key_values, end_pos ):
+    past_key_values_trimmed = []
+    for kv in past_key_values:
+        k, v = kv
+
+        # k, v (batch, head, seq, hidden_dim)
+        k = k[:, :, :end_pos, :]
+        v = v[:, :, :end_pos, :]
+        kv_trimmed = (k, v)
+        past_key_values_trimmed.append(kv_trimmed)
+    
+    return past_key_values_trimmed
+    

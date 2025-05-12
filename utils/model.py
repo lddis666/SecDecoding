@@ -2,6 +2,7 @@ from typing import Any
 from openai import OpenAI
 from tenacity import retry, wait_chain, wait_fixed
 import google.generativeai as genai
+from transformers import GenerationConfig
 import boto3
 import json
 # "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -14,6 +15,7 @@ class GPT:
         )
         self.T = temperature
         self.seed=seed
+        self.generation_config = GenerationConfig.from_pretrained("gpt2")
         
 
     def __call__(self, prompt,  n:int=1, debug=False, **kwargs: Any) -> Any:
@@ -34,6 +36,18 @@ class GPT:
     def resp_parse(self, response)->list:
         n = len(response.choices)
         return [response.choices[i].message.content for i in range(n)]
+
+
+    def generate(self, prompt, max_new_tokens):
+        completion = self.client.completions.create(
+            model=self.model_name,
+            prompt= prompt,
+            max_tokens=max_new_tokens,
+            temperature=0,
+            logprobs = 5,)
+
+        return completion.choices[0].text, completion.choices[0].logprobs.tokens, completion.choices[0].logprobs.top_logprobs
+
     
 
 def load_model(model_name, api_idx, **kwargs):

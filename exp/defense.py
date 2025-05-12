@@ -21,10 +21,11 @@ import copy, json, time, logging
 from peft import PeftModel, PeftModelForCausalLM
 
 
+
 def get_args():
     parser = argparse.ArgumentParser(description="Defense manager.")
     # Experiment Settings
-    parser.add_argument("--model_name", type=str, default="vicuna")
+    parser.add_argument("--model_name", type=str, default="gpt3.5")
     parser.add_argument("--attacker", type=str, default="GCG")
     parser.add_argument("--defense_off", action="store_false", dest="is_defense", help="Disable defense")
     parser.set_defaults(is_defense=True)
@@ -63,9 +64,10 @@ def get_args():
     parser.add_argument("--top_p", type=float, default=None)
     parser.add_argument("--multi_processing", type=int, default=20)
     parser.add_argument("--GPT_API", type=str, default='sk-31a5fa66751b440780587e12b1768ee5')
-    # "https://api.openai.com/v1"
-    parser.add_argument("--base_url", type=str, default="https://dashscope.aliyuncs.com/compatible-mode/v1")
-    parser.add_argument("--API_model_name", type=str, default="deepseek-v3")
+    parser.add_argument("--base_url", type=str, default="https://api.openai.com/v1")
+    # parser.add_argument("--base_url", type=str, default="https://dashscope.aliyuncs.com/compatible-mode/v1")
+    # parser.add_argument("--API_model_name", type=str, default="deepseek-v3")
+    parser.add_argument("--API_model_name", type=str, default="gpt-3.5-turbo-instruct")
     parser.add_argument("--disable_GPT_judge", action="store_true", dest="disable_GPT_judge", help="Disable GPT judge")
 
     return parser.parse_args()
@@ -156,6 +158,13 @@ elif args.model_name == "qwen2":
     template_name = 'qwen-7b-chat'
 
 
+elif args.model_name == "gpt3.5":
+    model_name = "gpt3.5"
+    small_model_name = "Qwen/Qwen2-1.5B-Instruct"
+    template_name = "gpt-3.5-turbo"
+    small_template_name = 'qwen-7b-chat'
+
+
 elif args.model_name == "qwen_case":
     model_name = "Qwen/Qwen2-7B-Instruct"
     template_name = 'qwen-7b-chat'
@@ -187,6 +196,11 @@ model, tokenizer = load_model_and_tokenizer(model_name,
                        device=args.device)
 
 
+if not model:
+    model = GPT(args.API_model_name, api=args.GPT_API, base_url=args.base_url)
+    
+
+
 small_model = None
 adapter_names = None
 if args.defender in ['SecDecoding','Speculative_Greedy']:  
@@ -201,6 +215,9 @@ if args.defender in ['SecDecoding','Speculative_Greedy']:
         lora_name = "qwen"
     elif args.model_name == "llama3":
         lora_name = "llama"
+    elif args.model_name == "gpt3.5":
+        lora_name = "qwen"
+    
     small_model = PeftModel.from_pretrained(small_model, "../lora_modules/"+lora_name, adapter_name="expert", torch_dtype=torch.float16)
     adapter_names = ['__base__', 'expert']
 
@@ -383,7 +400,10 @@ for prompt in tqdm(attack_prompts):
 
     logging.info(f"User Prompt: \"{user_prompt}\"")
 
+
     gen_config = model.generation_config
+
+
     gen_config.max_new_tokens = args.max_new_tokens
     gen_config.do_sample = args.do_sample
     gen_config.top_p = args.top_p
