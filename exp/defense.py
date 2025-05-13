@@ -152,8 +152,8 @@ elif args.model_name == "qwen":
     template_name = 'qwen-7b-chat'
 
 elif args.model_name == "qwen2":
-    # model_name = "cognitivecomputations/dolphin-2.9.2-qwen2-72b"
-    model_name = "Qwen/Qwen2-72B-Instruct"
+    model_name = "cognitivecomputations/dolphin-2.9.2-qwen2-72b"
+    # model_name = "Qwen/Qwen2-72B-Instruct"
     small_model_name = "Qwen/Qwen2-1.5B-Instruct"
     template_name = 'qwen-7b-chat'
 
@@ -223,6 +223,7 @@ if args.defender in ['SecDecoding','Speculative_Greedy']:
 
 elif args.defender == 'SafeDecoding':  
     model = PeftModel.from_pretrained(model, "../lora_modules/"+args.model_name+'_safedecoding', adapter_name="expert",torch_dtype=torch.float16)
+    # model = PeftModel.from_pretrained(model,"/root/qwen72b", adapter_name="expert",torch_dtype=torch.float16)
     adapter_names = ['__base__', 'expert']
 
 
