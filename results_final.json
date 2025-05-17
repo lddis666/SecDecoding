@@ -1,0 +1,386 @@
+{
+  "1.0_10.0_0.05": [
+    {
+      "attacker": "AutoDAN",
+      "result": 58
+    },
+    {
+      "attacker": "GCG",
+      "result": 26
+    },
+    {
+      "attacker": "MMLU",
+      "result": 64.6
+    },
+    {
+      "attacker": "PAIR",
+      "result": 18
+    },
+    {
+      "attacker": "SAP",
+      "result": 16
+    }
+  ],
+  "5.0_10.0_0.05": [
+    {
+      "attacker": "AutoDAN",
+      "result": 8
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "MMLU",
+      "result": 64.6
+    },
+    {
+      "attacker": "PAIR",
+      "result": 10
+    },
+    {
+      "attacker": "SAP",
+      "result": 4
+    }
+  ],
+  "10.0_10.0_0.05": [
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "MMLU",
+      "result": 63.6
+    },
+    {
+      "attacker": "MMLU",
+      "result": 63.6
+    },
+    {
+      "attacker": "MMLU",
+      "result": 63.6
+    },
+    {
+      "attacker": "MMLU",
+      "result": 63.6
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "SAP",
+      "result": 2
+    },
+    {
+      "attacker": "SAP",
+      "result": 2
+    },
+    {
+      "attacker": "SAP",
+      "result": 2
+    },
+    {
+      "attacker": "SAP",
+      "result": 2
+    },
+    {
+      "attacker": "SAP",
+      "result": 2
+    },
+    {
+      "attacker": "SAP",
+      "result": 2
+    }
+  ],
+  "15.0_10.0_0.05": [
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "MMLU",
+      "result": 63.1
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "SAP",
+      "result": 2
+    }
+  ],
+  "10.0_1.0_0.05": [
+    {
+      "attacker": "AutoDAN",
+      "result": 20
+    },
+    {
+      "attacker": "GCG",
+      "result": 4
+    },
+    {
+      "attacker": "MMLU",
+      "result": 64.5
+    },
+    {
+      "attacker": "PAIR",
+      "result": 10
+    },
+    {
+      "attacker": "SAP",
+      "result": 8
+    }
+  ],
+  "10.0_5.0_0.05": [
+    {
+      "attacker": "AutoDAN",
+      "result": 4
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "MMLU",
+      "result": 64.3
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "SAP",
+      "result": 3
+    }
+  ],
+  "10.0_15.0_0.05": [
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "MMLU",
+      "result": 63.4
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "SAP",
+      "result": 2
+    }
+  ],
+  "10.0_10.0_0.005": [
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "MMLU",
+      "result": 63.6
+    },
+    {
+      "attacker": "MMLU",
+      "result": 63.6
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "SAP",
+      "result": 2
+    },
+    {
+      "attacker": "SAP",
+      "result": 2
+    }
+  ],
+  "10.0_10.0_0.5": [
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "GCG",
+      "result": 2
+    },
+    {
+      "attacker": "MMLU",
+      "result": 63.6
+    },
+    {
+      "attacker": "MMLU",
+      "result": 63.6
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "PAIR",
+      "result": 8
+    },
+    {
+      "attacker": "SAP",
+      "result": 2
+    },
+    {
+      "attacker": "SAP",
+      "result": 2
+    },
+    {
+      "attacker": "SAP",
+      "result": 2
+    }
+  ],
+  "10.0_10.0_5.0": [
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "AutoDAN",
+      "result": 0
+    },
+    {
+      "attacker": "GCG",
+      "result": 20
+    },
+    {
+      "attacker": "GCG",
+      "result": 20
+    },
+    {
+      "attacker": "MMLU",
+      "result": 63.6
+    },
+    {
+      "attacker": "PAIR",
+      "result": 18
+    },
+    {
+      "attacker": "PAIR",
+      "result": 18
+    },
+    {
+      "attacker": "SAP",
+      "result": 5
+    },
+    {
+      "attacker": "SAP",
+      "result": 5
+    }
+  ]
+}
