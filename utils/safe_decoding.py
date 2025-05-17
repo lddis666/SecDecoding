@@ -249,6 +249,8 @@ class SafeDecoding:
         gen_config.do_sample = False  # We use greedy decoding
 
         generated_sequence = []
+        similarity_list = []
+        alpha_list = []
         if self.verbose:
             logging.info(f"Generation config: {gen_config}")
         if not small_inputs:
@@ -317,6 +319,10 @@ class SafeDecoding:
 
                 final_prob =  model_prob[:len(expert_prob)].to(expert_prob.device)  + alpha*(expert_prob - base_prob)
                 topk_prob_final, topk_indices_final = final_prob.topk(k) 
+
+                wasserstein_dist = torch.sum(torch.abs(base_prob - expert_prob)).item()
+                similarity_list.append(wasserstein_dist)
+                alpha_list.append(alpha)
 
 
                 if self.verbose:
@@ -404,7 +410,7 @@ class SafeDecoding:
             # logging.info generated sequence
             logging.info(f"Generated sequence: {self.tokenizer.decode(generated_sequence)}")
 
-            return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence)
+            return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence), similarity_list, alpha_list
 
         else:
                 
@@ -547,7 +553,7 @@ class SafeDecoding:
             # logging.info generated sequence
             logging.info(f"Generated sequence: {generated}")
 
-            return generated, len(generated)
+            return generated, len(generated), similarity_list, alpha_list
     
 
     @torch.no_grad()

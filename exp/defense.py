@@ -230,8 +230,10 @@ elif args.defender == 'SafeDecoding':
 if 'case' in args.model_name:
     model = PeftModel.from_pretrained(model, "../lora_modules/"+args.model_name, adapter_name="expert",torch_dtype=torch.float16)
     adapter_names = ['__base__', 'expert']
-    all_prob = []
-    all_similarity = []
+all_prob = []
+
+all_similarity = []
+all_alpha = []
 
 # Initialize defenders
 # Load PPL Calculator
@@ -386,6 +388,7 @@ else:
 
 time_per_second_list = []
 
+
 # Start generation
 for prompt in tqdm(attack_prompts):
     logging.info("--------------------------------------------")
@@ -460,8 +463,11 @@ for prompt in tqdm(attack_prompts):
             #     safe_prefix = safe_prefix)
             # safe_inputs = safe_input_manager.get_inputs()
             # outputs, output_length = safe_decoder.secdecoding(inputs, safe_inputs, gen_config=gen_config)
-            outputs, output_length = safe_decoder.secdecoding_lora(inputs, gen_config=gen_config, small_inputs = small_inputs,MMLU=MMLU,alpha_base_val=args.alpha_base_val, gamma_val=args.gamma_val, beta_val=args.beta_val)
+
+            outputs, output_length, similarity, alpha = safe_decoder.secdecoding_lora(inputs, gen_config=gen_config, small_inputs = small_inputs,MMLU=MMLU,alpha_base_val=args.alpha_base_val, gamma_val=args.gamma_val, beta_val=args.beta_val)
             all_length += output_length
+            all_similarity.append(similarity)
+            all_alpha.append(alpha)
 
 
 
@@ -811,6 +817,29 @@ with open(folder_path+'/'+save_name+'.json', 'w') as f:
 logging.info(f"Results saved to {save_name}.")
 
 
+def column_means(data):
+    """
+    计算嵌套列表每一列的均值（按位置对齐，不足的部分不参与均值计算）。
+
+    :param data: List[List[Number]]，嵌套的列表，子列表长度可以不同
+    :return: List[float]，每列对应均值
+    """
+    if not data:
+        return []
+    max_len = max(len(sublist) for sublist in data)
+    means = []
+    for i in range(max_len):
+        column = [sublist[i] for sublist in data if len(sublist) > i]
+        means.append(sum(column) / len(column))
+    return means
+
+if all_prob:
+    logging.info(f'prob{sum(all_prob)/len(all_prob)}')
+if all_similarity:
+    logging.info(f'{column_means(all_similarity)}')
+if all_alpha:
+    logging.info(f'{column_means(all_alpha)}')
+
 # Evaluation
 if args.eval_mode:
     logging.info("Evaluating...")
@@ -922,27 +951,9 @@ if args.eval_mode:
         logging.info(f'Scores: {(defense_success_count / len(safe_eval_results))*100:.2f}')
     logging.info(f'token per second: {sum(time_per_second_list)/len(time_per_second_list)}')
 
-    def column_means(data):
-        """
-        计算嵌套列表每一列的均值（按位置对齐，不足的部分不参与均值计算）。
 
-        :param data: List[List[Number]]，嵌套的列表，子列表长度可以不同
-        :return: List[float]，每列对应均值
-        """
-        if not data:
-            return []
-        max_len = max(len(sublist) for sublist in data)
-        means = []
-        for i in range(max_len):
-            column = [sublist[i] for sublist in data if len(sublist) > i]
-            means.append(sum(column) / len(column))
-        return means
-    if 'case' in args.model_name:
 
-        if all_prob:
-            logging.info(f'prob{sum(all_prob)/len(all_prob)}')
 
-        if all_similarity:
-            logging.info(f'{column_means(all_similarity)}')
+
         
         
