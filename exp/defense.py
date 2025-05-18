@@ -258,7 +258,7 @@ MMLU = None
 if args.attacker == "AdvBench":
     with open('../datasets/harmful_behaviors_custom.json', 'r', encoding='utf-8') as file:
         attack_prompts = json.load(file)
-elif args.attacker in ["GCG", "AutoDAN", "PAIR", "Multilingual","DeepInception","GPTfuzz"]:
+elif args.attacker in ["GCG", "AutoDAN", "PAIR", "Multilingual","DeepInception","GPTfuzz" , "renellm"]:
     if args.model_name == 'llama3':
         attack_prompts = json.load(open(f'../datasets/{args.attacker}/llama.json', 'r', encoding='utf-8'))
     elif args.model_name == "qwen2":
