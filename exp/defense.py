@@ -258,7 +258,7 @@ MMLU = None
 if args.attacker == "AdvBench":
     with open('../datasets/harmful_behaviors_custom.json', 'r', encoding='utf-8') as file:
         attack_prompts = json.load(file)
-elif args.attacker in ["GCG", "AutoDAN", "PAIR", "Multilingual","DeepInception"]:
+elif args.attacker in ["GCG", "AutoDAN", "PAIR", "Multilingual","DeepInception","GPTfuzz"]:
     if args.model_name == 'llama3':
         attack_prompts = json.load(open(f'../datasets/{args.attacker}/llama.json', 'r', encoding='utf-8'))
     elif args.model_name == "qwen2":
@@ -282,9 +282,9 @@ elif args.attacker == "SAP":
     with open('../datasets/SAP30.json', 'r', encoding='utf-8') as file:
         attack_prompts = json.load(file)
 
-elif args.attacker == "GPTFuzz":
-    with open('../datasets/GPTFuzz.json', 'r', encoding='utf-8') as file:
-        attack_prompts = json.load(file)
+# elif args.attacker == "GPTFuzz":
+#     with open('../datasets/GPTFuzz.json', 'r', encoding='utf-8') as file:
+#         attack_prompts = json.load(file)
 
 elif args.attacker == "Just-Eval":
     attack_prompts = load_dataset('re-align/just-eval-instruct', split="test")
