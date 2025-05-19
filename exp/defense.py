@@ -680,7 +680,7 @@ for prompt in tqdm(attack_prompts):
                     break
 
                 # Run a forward pass through the LLM for each perturbed copy
-                batch_outputs = safe_decoder.generate_batch(batch, gen_config=gen_config)
+                batch_outputs = safe_decoder.generate_batch(batch, gen_config=gen_config, MMLU = MMLU)
 
                 all_outputs.extend(batch_outputs)
                 torch.cuda.empty_cache()

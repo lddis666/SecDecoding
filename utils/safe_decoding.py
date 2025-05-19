@@ -6,6 +6,7 @@ from peft import PeftModel, PeftModelForCausalLM
 from transformers import AutoModelForCausalLM
 from utils.string_utils import pad_and_merge
 from math import exp
+import torch.nn.functional as F
 
 from utils.model import GPT
 
@@ -1044,43 +1045,59 @@ class SafeDecoding:
         return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence)
 
     @torch.no_grad()
-    def generate_batch(self, inputs,  gen_config=None):
-        batch_inputs = self.tokenizer(
-            inputs, 
-            padding=True, 
-            truncation=False, 
-            return_tensors='pt',
-            add_special_tokens = False,
-            
-        )
-        batch_input_ids = batch_inputs['input_ids'].to(self.model.device)
-        batch_attention_mask = batch_inputs['attention_mask'].to(self.model.device)
-
-        # Forward pass through the LLM
-        try:
-            outputs = self.model.generate(
-                batch_input_ids, 
-                attention_mask=batch_attention_mask, 
-                generation_config=gen_config,
-                pad_token_id=self.tokenizer.pad_token_id
+    def generate_batch(self, inputs,  gen_config=None, MMLU = None):
+        if not MMLU:
+            batch_inputs = self.tokenizer(
+                inputs, 
+                padding=True, 
+                truncation=False, 
+                return_tensors='pt',
+                add_special_tokens = False,
+                
             )
-        except RuntimeError:
-            return []
+            batch_input_ids = batch_inputs['input_ids'].to(self.model.device)
+            batch_attention_mask = batch_inputs['attention_mask'].to(self.model.device)
 
-        # Decode the outputs produced by the LLM
-        batch_outputs = self.tokenizer.batch_decode(
-            outputs, 
-            skip_special_tokens=True
-        )
-        gen_start_idx = [
-            len(self.tokenizer.decode(batch_input_ids[i], skip_special_tokens=True)) 
-            for i in range(len(batch_input_ids))
-        ]
-        batch_outputs = [
-            output[gen_start_idx[i]:] for i, output in enumerate(batch_outputs)
-        ]
+            # Forward pass through the LLM
+            try:
+                outputs = self.model.generate(
+                    batch_input_ids, 
+                    attention_mask=batch_attention_mask, 
+                    generation_config=gen_config,
+                    pad_token_id=self.tokenizer.pad_token_id
+                )
+            except RuntimeError:
+                return []
 
-        return batch_outputs
+            # Decode the outputs produced by the LLM
+            batch_outputs = self.tokenizer.batch_decode(
+                outputs, 
+                skip_special_tokens=True
+            )
+            gen_start_idx = [
+                len(self.tokenizer.decode(batch_input_ids[i], skip_special_tokens=True)) 
+                for i in range(len(batch_input_ids))
+            ]
+            batch_outputs = [
+                output[gen_start_idx[i]:] for i, output in enumerate(batch_outputs)
+            ]
+
+            return batch_outputs
+        else:
+            inputs = self.tokenizer(inputs, return_tensors='pt', padding=True, truncation=False, add_special_tokens = False,).to(self.model.device)
+            with torch.no_grad():
+                logits = self.model(**inputs).logits[:, -1, :]  # [batch, vocab]
+            
+            if MMLU == 1:
+                letters = ["A","B","C","D"]
+            else:
+                letters = ["A","B","C","D","E","F","G","H","I","J","K","L","M"]
+            option_ids = [self.tokenizer.encode(c, add_special_tokens=False)[0] for c in letters]
+            probs = F.softmax(logits, dim=-1)[:, option_ids]   # [batch, 4]
+            max_idx = probs.argmax(dim=-1)
+            chosen_ids = [option_ids[i.item()] for i in max_idx]
+            chosen = self.tokenizer.batch_decode([[i] for i in chosen_ids], skip_special_tokens=True)
+            return chosen
 
 
 
