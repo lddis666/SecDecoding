@@ -12,8 +12,77 @@ from utils.model import GPT
 
 from typing import Tuple, Set
 
+import random
+from typing import Union, List
+
+def map_token_id(id_src: int,
+                 tokenizer_src,
+                 tokenizer_tgt,
+                 strategy: str = "first") -> Union[int, List[int], None]:
+    """
+    给定源 tokenizer 的 id，返回目标 tokenizer 对应的 id
+
+    参数
+    ----
+    id_src : int
+        源 tokenizer 中的 token id
+    tokenizer_src : transformers.PreTrainedTokenizerBase
+    tokenizer_tgt : transformers.PreTrainedTokenizerBase
+    strategy : str
+        当映射到多个目标 token 时的处理策略：
+            "first"   -> 取第一个
+            "last"    -> 取最后一个
+            "longest" -> 取 decode 后字符串最长的一个
+            "all"     -> 返回所有 id (list)
+    返回
+    ----
+    int / list[int] / None
+        对应的目标 token id；无法映射时返回 None
+    """
+    # 1) id -> 原始文本片段
+    token_str = tokenizer_src.decode(
+        [id_src],
+        skip_special_tokens=False,
+        clean_up_tokenization_spaces=False,
+    )
+
+    # print("123123123")
+    # print(token_str)
+    # 2) 文本 -> 目标 tokenizer id 列表
+    ids_tgt = tokenizer_tgt.encode(
+        token_str,
+        add_special_tokens=False,
+    )
+
+    # print(ids_tgt)
+
+    if len(ids_tgt) == 0:
+        return None        # 无法映射
+
+    if strategy == "first":
+        return ids_tgt[0]
+    elif strategy == "last":
+        return ids_tgt[-1]
+    elif strategy == "longest":
+        # 选最长 decode 字符串
+        return max(
+            ids_tgt,
+            key=lambda i: len(
+                tokenizer_tgt.decode(
+                    [i],
+                    skip_special_tokens=False,
+                    clean_up_tokenization_spaces=False,
+                )
+            ),
+        )
+    elif strategy == "all":
+        return ids_tgt
+    else:
+        raise ValueError(f"Unknown strategy: {strategy}")
+
+
 class SafeDecoding:
-    def __init__(self, model, tokenizer, adapter_names, alpha=1, first_m=5, top_k = 10, num_common_tokens = 3, verbose=False, small_model = None):
+    def __init__(self, model, tokenizer, adapter_names, alpha=1, first_m=5, top_k = 10, num_common_tokens = 3, verbose=False, small_model = None, small_tokenizer = None):
         self.model = model
         self.tokenizer = tokenizer
         self.adapter_names = adapter_names
@@ -23,6 +92,7 @@ class SafeDecoding:
         self.num_common_tokens = num_common_tokens
         self.verbose = verbose
         self.small_model = small_model
+        self.small_tokenizer = small_tokenizer
 
         logging.info("SafeDecoding initialized.")
 
@@ -237,9 +307,10 @@ class SafeDecoding:
         return self.tokenizer.decode(generated_sequence, skip_special_tokens=True), len(generated_sequence)
 
     @torch.no_grad()
-    def secdecoding_lora(self, inputs, gen_config=None, small_inputs = None, MMLU = None, alpha_base_val=10.0, gamma_val=10.0, beta_val=0.05):
+    def secdecoding_lora(self, inputs, gen_config=None, small_inputs = None, MMLU = None, alpha_base_val=10.0, gamma_val=10.0, beta_val=0.05, M = None):
         if gen_config is None:
             gen_config = self.model.generation_config
+
 
         max_token_len = gen_config.max_new_tokens
         # max_token_len = 100
@@ -267,7 +338,7 @@ class SafeDecoding:
 
 
 
-            alpha_manager = Dynamic_alpha(alpha_base_val=alpha_base_val, gamma_val=gamma_val, beta_val=beta_val, tokenizer = self.tokenizer)
+            alpha_manager = Dynamic_alpha(alpha_base_val=alpha_base_val, gamma_val=gamma_val, beta_val=beta_val, tokenizer = self.tokenizer, small_tokenizer = self.small_tokenizer)
 
 
 
@@ -280,7 +351,7 @@ class SafeDecoding:
                 small_outputs = self.small_model.generate(**inputs_duplicated,
                                         adapter_names=self.adapter_names,
                                         generation_config=gen_config,
-                                        pad_token_id=self.tokenizer.pad_token_id,
+                                        # pad_token_id=self.small_tokenizer.pad_token_id,
                                         return_dict_in_generate=True,
                                         output_scores=True,)
                 
@@ -317,8 +388,17 @@ class SafeDecoding:
                     verbose=self.verbose
                 ).item()
 
-
-                final_prob =  model_prob[:len(expert_prob)].to(expert_prob.device)  + alpha*(expert_prob - base_prob)
+                if M is not None:
+                    # print(expert_prob.shape)
+                    # print(model_prob.shape)
+                    # print(M.shape)
+                    delta = (expert_prob - base_prob).to(M.device)[:M.shape[1]].unsqueeze(0)
+                    # print(delta.shape)
+                    pA_from_B = torch.sparse.mm(M, delta.float().t()).t().to(delta.dtype).squeeze(0) 
+                    # pA_from_B = torch.sparse.mv(M.cpu(), delta.cpu().t()).t().to(delta.device)
+                    final_prob = model_prob.to(expert_prob.device)[:M.shape[0]]  + alpha*pA_from_B.to(expert_prob.device)
+                else:
+                    final_prob =  model_prob[:len(expert_prob)].to(expert_prob.device)  + alpha*(expert_prob - base_prob)
                 topk_prob_final, topk_indices_final = final_prob.topk(k) 
 
                 wasserstein_dist = torch.sum(torch.abs(base_prob - expert_prob)).item()
@@ -333,7 +413,7 @@ class SafeDecoding:
                     logging.info("|No. | Token ID | Token    | Prob    |")
                     logging.info("|----|----------|---------|---------|")
                     for idx, (prob, token_id) in enumerate(zip(topk_prob_base, topk_indices_base)):
-                        token = self.tokenizer.decode(token_id.item())
+                        token = self.small_tokenizer.decode(token_id.item())
                         logging.info(f"{idx+1:4d} | {token_id:8d} | {token:7s}  | {prob:.2%} |")
 
 
@@ -341,7 +421,7 @@ class SafeDecoding:
                     logging.info("|No. | Token ID | Token   | Prob    |")
                     logging.info("|----|----------|---------|---------|")
                     for idx, (prob, token_id) in enumerate(zip(topk_prob_expert, topk_indices_expert)):
-                        token = self.tokenizer.decode(token_id.item())
+                        token = self.small_tokenizer.decode(token_id.item())
                         logging.info(f"{idx+1:4d} | {token_id:8d} | {token:7s} | {prob:.2%} |")
 
                     logging.info("Big Model")
@@ -382,8 +462,15 @@ class SafeDecoding:
                 inputs['input_ids'] = torch.cat([inputs['input_ids'], selected_token_id.unsqueeze(0).to(inputs['input_ids'].device)], dim=1)
                 inputs['attention_mask'] = torch.cat([inputs['attention_mask'], torch.tensor([[1]], device=self.model.device)], dim=1)
 
-                small_inputs['input_ids'] = torch.cat([small_inputs['input_ids'], selected_token_id.unsqueeze(0).to(inputs['input_ids'].device)], dim=1)
-                small_inputs['attention_mask'] = torch.cat([small_inputs['attention_mask'], torch.tensor([[1]], device=self.model.device)], dim=1)
+                small_selected_token_id = map_token_id(
+                    selected_token_id.item(),
+                    self.tokenizer,
+                    self.small_tokenizer,
+                    strategy="all"
+                )
+                small_inputs['input_ids'] = torch.cat([small_inputs['input_ids'], torch.tensor(small_selected_token_id).unsqueeze(0).to(small_inputs['input_ids'].device)], dim=1)
+                # small_inputs['input_ids'] = torch.cat([small_inputs['input_ids'], selected_token_id.unsqueeze(0).to(inputs['input_ids'].device)], dim=1)
+                small_inputs['attention_mask'] = torch.cat([small_inputs['attention_mask'], torch.tensor([[1]*len(small_selected_token_id)], device=self.model.device)], dim=1)
 
                 step += 1
 
@@ -486,7 +573,7 @@ class SafeDecoding:
                     logging.info("|No. | Token ID | Token    | Prob    |")
                     logging.info("|----|----------|---------|---------|")
                     for idx, (prob, token_id) in enumerate(zip(topk_prob_base, topk_indices_base)):
-                        token = self.tokenizer.decode(token_id.item())
+                        token = self.small_tokenizer.decode(token_id.item())
                         logging.info(f"{idx+1:4d} | {token_id:8d} | {token:7s}  | {prob:.2%} |")
 
 
@@ -494,7 +581,7 @@ class SafeDecoding:
                     logging.info("|No. | Token ID | Token   | Prob    |")
                     logging.info("|----|----------|---------|---------|")
                     for idx, (prob, token_id) in enumerate(zip(topk_prob_expert, topk_indices_expert)):
-                        token = self.tokenizer.decode(token_id.item())
+                        token = self.small_tokenizer.decode(token_id.item())
                         logging.info(f"{idx+1:4d} | {token_id:8d} | {token:7s} | {prob:.2%} |")
 
                     logging.info("Big Model")
@@ -531,7 +618,6 @@ class SafeDecoding:
                     logging.info("Early stop triggered.")
                     break
 
-
                 small_inputs['input_ids'] = torch.cat([small_inputs['input_ids'], selected_token_id.unsqueeze(0).to(small_inputs['input_ids'].device)], dim=1)
                 small_inputs['attention_mask'] = torch.cat([small_inputs['attention_mask'], torch.tensor([[1]], device=self.small_model.device)], dim=1)
 
@@ -543,7 +629,7 @@ class SafeDecoding:
 
 
 
-            if small_inputs['input_ids'][0][-1].item() == self.tokenizer.eos_token_id:
+            if small_inputs['input_ids'][0][-1].item() == self.small_tokenizer.eos_token_id:
                 logging.info("Early stop triggered.")
             else:
                 remaining_steps = max_token_len - len(generated_sequence)
@@ -1245,11 +1331,15 @@ class SafeDecoding:
 
 
 class Dynamic_alpha():
-    def __init__(self, alpha_base_val = 10.0, gamma_val = 10.0, beta_val = 0.05, tokenizer = None):
+    def __init__(self, alpha_base_val = 10.0, gamma_val = 10.0, beta_val = 0.05, tokenizer = None, small_tokenizer = None):
         self.alpha_base_val = alpha_base_val
         self.gamma_val = gamma_val
         self.beta_val = beta_val
         self.tokenizer = tokenizer
+        if small_tokenizer:
+            self.small_tokenizer = small_tokenizer
+        else: 
+            self.small_tokenizer = tokenizer
 
 
 
@@ -1340,7 +1430,10 @@ class Dynamic_alpha():
             # if self.tokenizer.convert_tokens_to_ids(word):
             #     safety_tokens.append(self.tokenizer.convert_tokens_to_ids(word))
             # else:
-            safety_tokens+=self.tokenizer.encode(word, add_special_tokens=False)
+            if self.small_tokenizer:
+                safety_tokens+=self.small_tokenizer.encode(word, add_special_tokens=False)
+            else:
+                safety_tokens+=self.tokenizer.encode(word, add_special_tokens=False)
         return set(safety_tokens)
     # --------------------------------------------------------------------------
     # 主修正函数 (Updated to use TVD)
@@ -1373,6 +1466,9 @@ class Dynamic_alpha():
 
         # Step 1: Find common tokens and search range
         # 获取概率 ≥ threshold 的 token 索引
+        # print(set(torch.where((p1 >= threshold) | (p2 >= threshold))))
+        
+        # print(self.safety_token_ids)
         selected_indices = list(set(torch.where((p1 >= threshold) | (p2 >= threshold))[0].cpu().tolist()) & self.safety_token_ids)
         # selected_indices = torch.where((p1 >= threshold) | (p2 >= threshold))[0]
         if verbose:

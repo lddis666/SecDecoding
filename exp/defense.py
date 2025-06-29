@@ -12,6 +12,8 @@ from utils.safe_decoding import SafeDecoding
 from utils.ppl_calculator import PPL_Calculator
 from utils.bpe import load_subword_nmt_table, BpeOnlineTokenizer
 
+from utils.mapping import build_mapping_gpu
+
 from  utils import perturbations
 from utils.model import GPT
 from safe_eval import DictJudge, GPTJudge
@@ -164,6 +166,19 @@ elif args.model_name == "gpt3.5":
     template_name = "gpt-3.5-turbo"
     small_template_name = 'qwen-7b-chat'
 
+elif args.model_name == "qwen-llama":
+    model_name = "huihui-ai/Meta-Llama-3.1-8B-Instruct-abliterated"
+    small_model_name = "Qwen/Qwen2-1.5B-Instruct"
+    template_name = "Llama-3-8B-Instruct"
+    small_template_name = 'qwen-7b-chat'
+
+elif args.model_name == "llama-qwen":
+    model_name = "Qwen/Qwen2-7B-Instruct"
+    template_name = 'qwen-7b-chat'
+    small_model_name = "huihui-ai/Llama-3.2-1B-Instruct-abliterated"
+    small_template_name = "Llama-3-8B-Instruct"
+
+
 
 elif args.model_name == "qwen_case":
     model_name = "Qwen/Qwen2-7B-Instruct"
@@ -202,6 +217,7 @@ if not model:
 
 
 small_model = None
+small_tokenizer = None
 adapter_names = None
 if args.defender in ['SecDecoding','Speculative_Greedy']:  
     small_model, small_tokenizer = load_model_and_tokenizer(small_model_name, 
@@ -217,6 +233,10 @@ if args.defender in ['SecDecoding','Speculative_Greedy']:
         lora_name = "llama"
     elif args.model_name == "gpt3.5":
         lora_name = "qwen"
+    elif args.model_name == "qwen-llama":
+        lora_name = 'qwen'
+    elif args.model_name == "llama-qwen":
+        lora_name = 'llama'
     
     small_model = PeftModel.from_pretrained(small_model, "../lora_modules/"+lora_name, adapter_name="expert", torch_dtype=torch.float16)
     adapter_names = ['__base__', 'expert']
@@ -230,8 +250,17 @@ elif args.defender == 'SafeDecoding':
 if 'case' in args.model_name:
     model = PeftModel.from_pretrained(model, "../lora_modules/"+args.model_name, adapter_name="expert",torch_dtype=torch.float16)
     adapter_names = ['__base__', 'expert']
-all_prob = []
 
+
+
+if args.model_name in [ "qwen-llama","llama-qwen"]:
+    M = build_mapping_gpu(tokenizer, small_tokenizer, even_share=True, num_workers=8)
+else:
+    M = None
+
+
+
+all_prob = []
 all_similarity = []
 all_alpha = []
 
@@ -259,9 +288,9 @@ if args.attacker == "AdvBench":
     with open('../datasets/harmful_behaviors_custom.json', 'r', encoding='utf-8') as file:
         attack_prompts = json.load(file)
 elif args.attacker in ["GCG", "AutoDAN", "PAIR", "Multilingual","DeepInception","GPTfuzz" , "renellm" ,"codechameleon"]:
-    if args.model_name == 'llama3':
+    if args.model_name == 'llama3' or args.model_name == 'qwen-llama':
         attack_prompts = json.load(open(f'../datasets/{args.attacker}/llama.json', 'r', encoding='utf-8'))
-    elif args.model_name == "qwen2":
+    elif args.model_name == "qwen2" or args.model_name == "llama-qwen":
         attack_prompts = json.load(open(f'../datasets/{args.attacker}/qwen.json', 'r', encoding='utf-8'))
     else:
         attack_prompts = json.load(open(f'../datasets/{args.attacker}/{args.model_name}.json', 'r', encoding='utf-8'))
@@ -348,7 +377,8 @@ safe_decoder = SafeDecoding(model,
                             top_k=args.top_k, 
                             num_common_tokens=args.num_common_tokens,
                             verbose=args.verbose,
-                            small_model=small_model
+                            small_model=small_model,
+                            small_tokenizer = small_tokenizer,
                             )
 
 # Initialize output json
@@ -449,7 +479,7 @@ for prompt in tqdm(attack_prompts):
             inputs = input_manager.get_inputs()
 
             if small_conv_template:
-                input_manager = PromptManager(tokenizer=tokenizer, 
+                input_manager = PromptManager(tokenizer=small_tokenizer, 
                     conv_template=small_conv_template, 
                     instruction=user_prompt,
                     whitebox_attacker=whitebox_attacker)
@@ -464,7 +494,7 @@ for prompt in tqdm(attack_prompts):
             # safe_inputs = safe_input_manager.get_inputs()
             # outputs, output_length = safe_decoder.secdecoding(inputs, safe_inputs, gen_config=gen_config)
 
-            outputs, output_length, similarity, alpha = safe_decoder.secdecoding_lora(inputs, gen_config=gen_config, small_inputs = small_inputs,MMLU=MMLU,alpha_base_val=args.alpha_base_val, gamma_val=args.gamma_val, beta_val=args.beta_val)
+            outputs, output_length, similarity, alpha = safe_decoder.secdecoding_lora(inputs, gen_config=gen_config, small_inputs = small_inputs,MMLU=MMLU,alpha_base_val=args.alpha_base_val, gamma_val=args.gamma_val, beta_val=args.beta_val, M = M)
             all_length += output_length
             all_similarity.append(similarity)
             all_alpha.append(alpha)
@@ -480,7 +510,7 @@ for prompt in tqdm(attack_prompts):
             inputs = input_manager.get_inputs()
 
             if small_conv_template:
-                input_manager = PromptManager(tokenizer=tokenizer, 
+                input_manager = PromptManager(tokenizer=small_tokenizer, 
                     conv_template=small_conv_template, 
                     instruction=user_prompt,
                     whitebox_attacker=whitebox_attacker)
