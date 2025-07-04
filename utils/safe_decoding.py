@@ -277,15 +277,35 @@ class SafeDecoding:
                 # duplicate inputs for two original and expert model
                 
                 inputs_duplicated = {k:v.repeat(2,1).cuda(self.small_model.device) for k,v in small_inputs.items()}
-                small_outputs = self.small_model.generate(**inputs_duplicated,
-                                        adapter_names=self.adapter_names,
-                                        generation_config=gen_config,
-                                        pad_token_id=self.tokenizer.pad_token_id,
-                                        return_dict_in_generate=True,
-                                        output_scores=True,)
+
+                base_out = self.small_model(
+                    small_inputs['input_ids'],  adapter_names = ['__base__']
+                )
+                base_scores = base_out.logits[:, -1:, :][0][0]  # (N, vocab)
+
+                expert_out = self.small_model(
+                    small_inputs['input_ids'],  adapter_names = ['expert']
+                )
+                expert_scores = expert_out.logits[:, -1:, :][0][0]  # (N, vocab)
+                # print(f'1:{expert_scores.shape}, 2:{base_scores.shape}')
+
+
+
+
+
+
+
                 
-                base_scores = small_outputs['scores'][0][0]
-                expert_scores = small_outputs['scores'][0][1]
+                
+                # small_outputs = self.small_model.generate(**inputs_duplicated,
+                #                         adapter_names=self.adapter_names,
+                #                         generation_config=gen_config,
+                #                         pad_token_id=self.tokenizer.pad_token_id,
+                #                         return_dict_in_generate=True,
+                #                         output_scores=True,)
+                
+                # base_scores = small_outputs['scores'][0][0]
+                # expert_scores = small_outputs['scores'][0][1]
                 base_prob = torch.softmax(base_scores,dim=-1)
                 expert_prob = torch.softmax(expert_scores,dim=-1)
 
@@ -296,12 +316,19 @@ class SafeDecoding:
 
 
 
-                outputs = self.model.generate(**inputs,
-                    generation_config=gen_config,
-                    pad_token_id=self.tokenizer.pad_token_id,
-                    return_dict_in_generate=True,
-                    output_scores=True,)
-                model_scores = outputs['scores'][0][0]  
+                # outputs = self.model.generate(**inputs,
+                #     generation_config=gen_config,
+                #     pad_token_id=self.tokenizer.pad_token_id,
+                #     return_dict_in_generate=True,
+                #     output_scores=True,)
+                # model_scores = outputs['scores'][0][0] 
+
+                model_out = self.model(
+                    inputs['input_ids']
+                )
+                model_scores = model_out.logits[:, -1:, :][0][0]  # (N, vocab)
+
+                # print(model_scores.shape) 
 
                 model_prob = torch.softmax(model_scores,dim=-1)
                 topk_prob_model, topk_indices_model = model_prob.topk(k) 
@@ -398,15 +425,41 @@ class SafeDecoding:
             else:
                 remaining_steps = max_token_len - len(generated_sequence)
                 if remaining_steps>0:
-                    gen_config.max_new_tokens = remaining_steps
-                    gen_config.do_sample = do_sample
-                    output_base = self.model.generate(**inputs,
-                                            generation_config=gen_config,
-                                            pad_token_id=self.tokenizer.pad_token_id,
-                                            return_dict_in_generate=True,
-                                            output_scores=True,)
+
+                    for _ in range(remaining_steps):
+                        draft_out = self.model(
+                            inputs['input_ids'], 
+                        )
+
+
+                        next_logits = draft_out.logits[:, -1, :]   # 取最后一步
+
+
+
+                        next_token = next_logits.argmax(-1, keepdim=True)
+                        # print(inputs['input_ids'].shape, next_token.shape)
+                        # 合并
+                        inputs['input_ids'] = torch.cat([inputs['input_ids'], next_token], dim=1)
+                        # inputs['input_ids'].append(next_token)
+                        generated_sequence.append(next_token.item())
+
+                        if next_token.item() == self.tokenizer.eos_token_id:
+                            logging.info("Stop")
+                            break
+
+
+
+                    # gen_config.max_new_tokens = remaining_steps
+                    # gen_config.do_sample = do_sample
+                    # output_base = self.model.generate(**inputs,
+                    #                         generation_config=gen_config,
+                    #                         pad_token_id=self.tokenizer.pad_token_id,
+                    #                         return_dict_in_generate=True,
+                    #                         output_scores=True,)
                 
-                    generated_sequence = output_base.sequences[0].tolist()[input_len:]
+                    # generated_sequence = output_base.sequences[0].tolist()[input_len:]
+
+
 
             # logging.info generated sequence
             logging.info(f"Generated sequence: {self.tokenizer.decode(generated_sequence)}")
